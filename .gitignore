@@ -1,0 +1,8 @@
+# Diretório de dependências do Node.js
+node_modules/
+
+# Arquivo de saída
+saida.txt
+
+# Pasta de testes
+testes/
