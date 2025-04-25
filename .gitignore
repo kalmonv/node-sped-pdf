@@ -3,6 +3,3 @@ node_modules/
 
 # Arquivo de saída
 saida.txt
-
-# Pasta de testes
-testes/
