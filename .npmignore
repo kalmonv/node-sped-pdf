@@ -1,5 +1,4 @@
-docs/
-exemplos/
 src/
 saida.txt
-testes/
+test.js
+index.html

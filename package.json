@@ -1,5 +1,7 @@
 {
-  "name": "modulo-universal",
+  "name": "node-sped-pdf",
+  "version": "1.0.0",
+  "author": "Kalmon V. Tavares",
   "type": "module",
   "scripts": {
     "build": "vite build",
