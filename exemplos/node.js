@@ -1,1 +1,0 @@
-import spedpdf from "../dist/index.js"

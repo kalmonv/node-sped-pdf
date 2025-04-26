@@ -1,46 +1,22 @@
 {
-  "name": "node-sped-pdf",
-  "version": "1.1.0",
-  "author": "Kalmon V. Tavares",
+  "name": "modulo-universal",
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "keywords": [
-    "nota fiscal",
-    "xml",
-    "sefaz",
-    "nfe",
-    "sped",
-    "documento fiscal",
-    "danfe",
-    "nfce",
-    "pdf"
-  ],
-  "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "require": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    }
-  },
   "scripts": {
-    "build": "tsc > saida.txt",
-    "teste": "node exemplos/node.js"
+    "build": "vite build",
+    "dev": "vite ."
   },
   "devDependencies": {
     "@types/blob-stream": "^0.1.33",
+    "@types/node": "^22.14.1",
     "@types/pdfkit": "^0.13.9",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0"
   },
   "dependencies": {
+    "@react-pdf/pdfkit": "^4.0.3",
     "blob-stream": "^0.1.3",
-    "fast-xml-parser": "^4.5.3",
+    "fast-xml-parser": "^5.2.0",
     "pdfkit": "^0.17.0",
-    "xmldom": "^0.6.0"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/kalmonv/node-sped-pdf.git"
-  },
-  "license": "MIT"
+    "rollup-plugin-node-polyfills": "^0.2.1"
+  }
 }

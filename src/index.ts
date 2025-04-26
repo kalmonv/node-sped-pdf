@@ -1,3 +1,3 @@
-import { danfe } from "./utils/danfe.js"
+import { danfe } from "./libs/danfe"
 
 export { danfe }

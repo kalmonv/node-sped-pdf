@@ -1,35 +1,24 @@
+import PDFDocument from "@react-pdf/pdfkit"
 import { XMLParser } from "fast-xml-parser"
-import PDFDocument from "pdfkit"
-import blobStream from "blob-stream"
 
-function makePDF(tipo: string, data = { xml: "", xmlRes: "", logo: "" }) {
-    return new Promise((resolv, reject) => {
+class danfe {
+    #pdf: any;
+    #nextBloco = 0;
+    #xml: Record<string, any> = {};
+    #xmlRes: Record<string, any> | null = null;
+    #logo: any = null;
+    #imgDemo: string | null = null;
+    #isBrowser: boolean = false;
+
+    constructor(data: { xml?: Record<string, any>, xmlRes?: Record<string, any> | null, logo?: any | null, imgDemo?: string | null } = {}) {
+        this.#isBrowser = typeof window !== 'undefined';
         const parser = new XMLParser({
             ignoreAttributes: false,
             attributeNamePrefix: "@",
             parseTagValue: false,       // Evita conversão automática de valores
         });
-        let xmlObj = parser.parse(data.xml);
-        switch (tipo) {
-            case "danfe":
-                console.log(xmlObj)
-                const danfeInstance = new danfe({ xml: xmlObj, xmlRes: (typeof data.xmlRes != "undefined" ? parser.parse(data.xmlRes) : null) });
-                danfeInstance.getPDF().then(resolv).catch(reject); // ou `.build()` ou `.render()`, depende da sua classe
-            default:
-                reject(`Tipo de PDF não suportado: ${tipo}`);
-        }
-    })
-}
+        data.xml = parser.parse(data.xml);
 
-class danfe {
-    #pdf: PDFKit.PDFDocument;
-    #nextBloco = 0;
-    #xml: Record<string, any> = {};
-    #xmlRes: Record<string, any> | null = null;
-    #logo: string | null = null;
-    #imgDemo: string | null = null;
-
-    constructor(data: { xml?: Record<string, any>, xmlRes?: Record<string, any> | null, logo?: string | null, imgDemo?: string | null } = {}) {
         this.#xml = data.xml || {};
         this.#xmlRes = data.xmlRes || null;
         this.#logo = data.logo || null;
@@ -52,25 +41,58 @@ class danfe {
     }
 
     getPDF(): Promise<string> {
-        return new Promise((resolve, reject) => {
-            try {
-                const stream = this.#pdf.pipe(blobStream());
-                this.#bloco0();
-                this.#bloco1();
-                this.#bloco2();
-                this.#bloco3();
-                this.#bloco4();
-                this.#bloco5();
-                this.#bloco6();
+        // Detecta se está rodando no browser ou Node
+        return new Promise(async (resolve, reject) => {
+            if (this.#isBrowser) {
+                // 📦 Browser
+                const stream = this.#pdf.pipe(window.blobStream());
+                await this.#bloco0();
+                await this.#bloco1();
+                await this.#bloco2();
+                await this.#bloco3();
+                await this.#bloco4();
+                await this.#bloco5();
+                await this.#bloco6();
 
                 if (this.#imgDemo != null) this.#demo();
-
                 this.#pdf.end();
+
                 stream.on('finish', () => {
-                    resolve(stream.toBlobURL('application/pdf'));
+                    const blob = stream.toBlob('application/pdf');
+                    const reader = new FileReader();
+
+                    reader.onloadend = () => {
+                        const result = reader.result as string;
+                        const base64 = result.slice(result.indexOf(',') + 1);
+                        resolve(base64);
+                    };
+
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
                 });
-            } catch (error) {
-                reject(error);
+            } else {
+                // 🧱 Node.js
+                const { PassThrough } = await import('stream');
+                const stream = new PassThrough();
+                const chunks: Uint8Array[] = [];
+
+                stream.on('data', (chunk) => chunks.push(chunk));
+                stream.on('end', () => {
+                    const buffer = Buffer.concat(chunks);
+                    resolve(buffer.toString('base64'));
+                });
+
+                this.#pdf.pipe(stream);
+                await this.#bloco0();
+                await this.#bloco1();
+                await this.#bloco2();
+                await this.#bloco3();
+                await this.#bloco4();
+                await this.#bloco5();
+                await this.#bloco6();
+
+                if (this.#imgDemo != null) this.#demo();
+                this.#pdf.end();
             }
         });
     }
@@ -109,6 +131,13 @@ class danfe {
         });
 
         let mtLogo = 0;
+        if (this.#logo != null) {
+            if (this.#logo.includes("http")) {
+                this.#logo = await fetch(this.#logo).then(response => response.blob()).then(blob => this.#blob2base64(blob));
+            }
+            this.#addBase64IMG({ l: 3, t: 8, w: this.#pdfWidth * 0.41, h: this.#pdfHeight * 0.108, base64: this.#logo });
+            mtLogo = 28;
+        }
         this.#addTXT({
             aling: 'center', font: "bold", txt: this.#xml.NFe.infNFe.emit.xNome,
             l: 0, t: 34 + mtLogo, w: this.#pdfWidth * 0.4, size: 12
@@ -191,7 +220,7 @@ class danfe {
         this.#addRetangulo({ l: 0, t: this.#pdfHeight * 0.108, w: this.#pdfWidth * 0.578, h: this.#pdfHeight * 0.023 });
         this.#addTXT({
             aling: 'center', txt: "NATUREZA DA OPERAÇÃO",
-            l: 3, t: this.#pdfHeight * 0.11
+            l: 3, t: this.#pdfHeight * 0.11, w: this.#pdfWidth * 0.56,
         });
         this.#addTXT({
             aling: 'center', txt: "VENDA",
@@ -883,107 +912,106 @@ class danfe {
         this.#addLinhaHT({ t: 32, ls: 0, le: this.#pdfWidth });
 
         let nextProd = 32;
-        if (Array.isArray(this.#xml.NFe.infNFe.det)) {
-            this.#xml.NFe.infNFe.det.forEach((el: any) => {
-                this.#addTXT({
-                    aling: 'center', txt: el.prod.cEAN,
-                    l: 0, t: nextProd,
-                    w: this.#pdfWidth * 0.10,
-                });
+        let produtos = Array.isArray(this.#xml.NFe.infNFe.det) ? this.#xml.NFe.infNFe.det : [{ prod: this.#xml.NFe.infNFe.det.prod }];
+        produtos.forEach((el: any) => {
+            this.#addTXT({
+                aling: 'center', txt: el.prod.cEAN,
+                l: 0, t: nextProd,
+                w: this.#pdfWidth * 0.10,
+            });
 
-                this.#addTXT({
-                    aling: 'center', txt: el.prod.xProd,
-                    l: this.#pdfWidth * 0.10, t: nextProd,
-                    w: this.#pdfWidth * 0.25,
-                });
+            this.#addTXT({
+                aling: 'center', txt: el.prod.xProd,
+                l: this.#pdfWidth * 0.10, t: nextProd,
+                w: this.#pdfWidth * 0.25,
+            });
 
-                this.#addTXT({
-                    aling: 'center', txt: el.prod.NCM,
-                    l: this.#pdfWidth * 0.35, t: nextProd,
-                    w: this.#pdfWidth * 0.05,
-                });
+            this.#addTXT({
+                aling: 'center', txt: el.prod.NCM,
+                l: this.#pdfWidth * 0.35, t: nextProd,
+                w: this.#pdfWidth * 0.05,
+            });
 
-                this.#addTXT({
-                    aling: 'center', txt: "O/CSOSN",
-                    l: this.#pdfWidth * 0.40, t: nextProd,
-                    w: this.#pdfWidth * 0.05,
-                });
+            this.#addTXT({
+                aling: 'center', txt: "O/CSOSN",
+                l: this.#pdfWidth * 0.40, t: nextProd,
+                w: this.#pdfWidth * 0.05,
+            });
 
-                this.#addTXT({
-                    aling: 'center', txt: el.prod.CFOP,
-                    l: this.#pdfWidth * 0.45, t: nextProd,
-                    w: this.#pdfWidth * 0.04,
-                });
+            this.#addTXT({
+                aling: 'center', txt: el.prod.CFOP,
+                l: this.#pdfWidth * 0.45, t: nextProd,
+                w: this.#pdfWidth * 0.04,
+            });
 
-                this.#addTXT({
-                    aling: 'center', txt: el.prod.uCom,
-                    l: this.#pdfWidth * 0.49, t: nextProd,
-                    w: this.#pdfWidth * 0.03,
-                });
+            this.#addTXT({
+                aling: 'center', txt: el.prod.uCom,
+                l: this.#pdfWidth * 0.49, t: nextProd,
+                w: this.#pdfWidth * 0.03,
+            });
 
-                this.#addTXT({
-                    aling: 'center', txt: el.prod.qCom,
-                    l: this.#pdfWidth * 0.52, t: nextProd,
-                    w: this.#pdfWidth * 0.07,
-                });
+            this.#addTXT({
+                aling: 'center', txt: el.prod.qCom,
+                l: this.#pdfWidth * 0.52, t: nextProd,
+                w: this.#pdfWidth * 0.07,
+            });
 
-                this.#addTXT({
-                    aling: 'center', txt: (1 * el.prod.vUnCom).toFixed(2),
-                    l: this.#pdfWidth * 0.59, t: nextProd,
-                    w: this.#pdfWidth * 0.06,
-                });
+            this.#addTXT({
+                aling: 'center', txt: (1 * el.prod.vUnCom).toFixed(2),
+                l: this.#pdfWidth * 0.59, t: nextProd,
+                w: this.#pdfWidth * 0.06,
+            });
 
-                this.#addTXT({
-                    aling: 'center', txt: el.prod.vProd,
-                    l: this.#pdfWidth * 0.65, t: nextProd,
-                    w: this.#pdfWidth * 0.06,
-                });
+            this.#addTXT({
+                aling: 'center', txt: el.prod.vProd,
+                l: this.#pdfWidth * 0.65, t: nextProd,
+                w: this.#pdfWidth * 0.06,
+            });
 
-                this.#addTXT({
-                    aling: 'center', txt: el.prod.vDesc,
-                    l: this.#pdfWidth * 0.71, t: nextProd,
-                    w: this.#pdfWidth * 0.06,
-                });
+            this.#addTXT({
+                aling: 'center', txt: "0.00",
+                l: this.#pdfWidth * 0.71, t: nextProd,
+                w: this.#pdfWidth * 0.06,
+            });
 
-                this.#addTXT({
-                    aling: 'center', txt: "B.CÁLC ICMS",
-                    l: this.#pdfWidth * 0.77, t: nextProd,
-                    w: this.#pdfWidth * 0.04,
-                });
+            this.#addTXT({
+                aling: 'center', txt: "B.CÁLC ICMS",
+                l: this.#pdfWidth * 0.77, t: nextProd,
+                w: this.#pdfWidth * 0.04,
+            });
 
-                this.#addTXT({
-                    aling: 'center', txt: "V. ICMS",
-                    l: this.#pdfWidth * 0.81, t: nextProd,
-                    w: this.#pdfWidth * 0.06,
-                });
+            this.#addTXT({
+                aling: 'center', txt: "V. ICMS",
+                l: this.#pdfWidth * 0.81, t: nextProd,
+                w: this.#pdfWidth * 0.06,
+            });
 
-                this.#addTXT({
-                    aling: 'center', txt: "V. IPI",
-                    l: this.#pdfWidth * 0.87, t: nextProd,
-                    w: this.#pdfWidth * 0.04,
-                });
+            this.#addTXT({
+                aling: 'center', txt: "V. IPI",
+                l: this.#pdfWidth * 0.87, t: nextProd,
+                w: this.#pdfWidth * 0.04,
+            });
 
-                this.#addTXT({
-                    aling: 'center', txt: "ALIQ. ICM",
-                    l: this.#pdfWidth * 0.91, t: nextProd,
-                    w: this.#pdfWidth * 0.04,
-                });
+            this.#addTXT({
+                aling: 'center', txt: "ALIQ. ICM",
+                l: this.#pdfWidth * 0.91, t: nextProd,
+                w: this.#pdfWidth * 0.04,
+            });
 
-                this.#addTXT({
-                    aling: 'center', txt: "ALIQ. ICM",
-                    l: this.#pdfWidth * 0.95, t: nextProd,
-                    w: this.#pdfWidth * 0.04,
-                });
+            this.#addTXT({
+                aling: 'center', txt: "ALIQ. ICM",
+                l: this.#pdfWidth * 0.95, t: nextProd,
+                w: this.#pdfWidth * 0.04,
+            });
 
-                //xProd utilizou 2 linhas!
-                while (el.prod.xProd.length > 28) {
-                    nextProd += 9;
-                    el.prod.xProd = el.prod.xProd.slice(0, 28);
-                    console.log("nexct!")
-                }
+            //xProd utilizou 2 linhas!
+            while (el.prod.xProd.length > 28) {
                 nextProd += 9;
-            })
-        }
+                el.prod.xProd = el.prod.xProd.slice(0, 28);
+                console.log("nexct!")
+            }
+            nextProd += 9;
+        })
 
         this.#mtIndex += tabH + 12;
         console.log(this.#mtIndex);
@@ -1054,22 +1082,27 @@ class danfe {
     #mtIndex: number = 0; //Margem do topo para proximo bloco
     #pagIndex: number = 1;
     #pagQtd: number = 1;
-    #readImg(): Promise<any> {
+    #base64IMG(): Promise<any> {
         return new Promise((resolve, reject) => {
-            if (typeof require === "undefined") {
-                if (this.#logo) {
-                    fetch(this.#logo)
-                        .then(response => response.blob())
-                        .then(blob => this.#blob2base64(blob))
-                        .then(resolve)
-                        .catch(reject);
+            if (this.#logo != null) {
+                if (this.#isBrowser) {
+                    if (this.#logo) {
+                        fetch(this.#logo).then(response => response.blob()).then(blob => this.#blob2base64(blob)).catch(reject);
+                    } else {
+                        reject(new Error("Logo não foi definido."));
+                    }
                 } else {
-                    reject(new Error("Logo não foi definido."));
+                    reject(new Error("Método não suportado no ambiente Node.js"));
                 }
             } else {
-                reject(new Error("Método não suportado no ambiente Node.js"));
+                resolve(false)
             }
+
         });
+    }
+    #addBase64IMG(data = { l: 0, t: 0, w: 0, h: 0, base64: "" }, mtIndex = this.#mtIndex) {
+        this.#pdf.image(data.base64, (data.l <= this.#pdfMargin ? this.#pdfMargin + data.l : data.l),
+        (data.t <= this.#pdfMargin ? (data.t + this.#pdfMargin) : data.t + this.#pdfMargin) + mtIndex, { fit: [data.w, 50], align: 'center', valign: 'center' })
     }
     #blob2base64(blob: any): Promise<any> {
         const reader = new FileReader();
@@ -1150,7 +1183,7 @@ class danfe {
     #addTXT(data: {
         l: number;
         t: number;
-        txt: string;
+        txt: any;
         txtCor?: string;
         size?: number;
         w?: number;
@@ -1182,4 +1215,5 @@ class danfe {
             );
     }
 }
+
 export { danfe }
