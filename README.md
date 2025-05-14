@@ -67,7 +67,7 @@ const xml = fs.readFileSync('./nota.xml', 'utf-8');
 | Propriedade | Descrição | Obrigatório |
 |-------------|-----------|-------------|
 | `xml`       | XML da NFe/NFC-e. | ✅ Sim |
-| `logo`      | URL da imagem da logo para exibição no PDF. | ❌ Não |
+| `logo`      | URL da imagem da logo (HTTP) ou imagem em base64 para exibição no PDF. | ❌ Não |
 
 ## 📄 Licença
 

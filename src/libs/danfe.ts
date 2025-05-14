@@ -1,591 +1,334 @@
-import PDFDocument from "@react-pdf/pdfkit"
+import { PDFDocument, StandardFonts, rgb, PDFFont } from "pdf-lib"
 import { XMLParser } from "fast-xml-parser"
 
-class danfe {
-    #pdf: any;
-    #nextBloco = 0;
-    #xml: Record<string, any> = {};
-    #xmlRes: Record<string, any> | null = null;
-    #logo: any = null;
-    #imgDemo: string | null = null;
-    #isBrowser: boolean = false;
 
-    constructor(data: { xml?: string, xmlRes?: Record<string, any> | null, logo?: any | null, imgDemo?: string | null } = {}) {
-        this.#isBrowser = typeof window !== 'undefined';
-        const parser = new XMLParser({
-            ignoreAttributes: false,
-            attributeNamePrefix: "@",
-            parseTagValue: false,       // Evita conversão automática de valores
-        });
-        let tXml = data.xml ? parser.parse(data.xml) : {};
-        if (typeof tXml.nfeProc != 'undefined') { //NFe com manifesto
-            tXml = tXml.nfeProc;
-        }
 
-        this.#xml = tXml;
-        console.log(tXml)
-        this.#xmlRes = data.xmlRes || null;
-        this.#logo = data.logo || null;
-        this.#imgDemo = data.imgDemo || null;
+const DANFe = async (data: { xml?: string, xmlRes?: Record<string, any> | null, logo?: any | null, imgDemo?: string | null } = {}) => {
+    var PDF: {
+        doc: any;
+        pages: any;
+        width: number;
+        height: number;
+        mtBlock: number;
+    } = {
+        doc: await PDFDocument.create(),
+        pages: [],
+        width: 0,
+        height: 0,
+        mtBlock: 0,
+    }, isBrowser = typeof window !== 'undefined',
+        xml = data.xml,
+        xmlRes = data.xmlRes,
+        logo = data.logo,
+        imgDemo = data.imgDemo;
+    const parser = new XMLParser({
+        ignoreAttributes: false,
+        attributeNamePrefix: "@",
+        parseTagValue: false,       // Evita conversão automática de valores
+    });
 
-        this.#pdf = new PDFDocument({
-            bufferPages: true,
-            margin: 0,
-            size: [
-                this.#pdfWidth,
-                this.#pdfHeight
-            ],
-            info: {
-                Author: "Kalmon Valadao Tavares",
-                Title: "DANFE",
-                Creator: "Guara DEV",
-                Producer: "http://github.com/brasil-js/danfe"
-            }
+    //Configuração do PDF
+    PDF.pages.push(PDF.doc.addPage());
+    PDF.width = (PDF.pages[0]).getWidth();
+    PDF.height = (PDF.pages[0]).getHeight();
+
+    // ------------------------   FUNÇOES ------------------------------
+
+    async function addRet(page: any, x: number, y: number, w: number, h: number) {
+        page.drawRectangle({
+            x: x + 4,
+            y: (PDF.height - h) - (y + 4),
+            width: (x + w + 8) >= PDF.width ? (PDF.width - x) - 8 : w,
+            height: h,
+            borderColor: rgb(0, 0, 0),
+            borderWidth: 1
         });
     }
 
-    getPDF(): Promise<string> {
-        // Detecta se está rodando no browser ou Node
-        return new Promise(async (resolve, reject) => {
-            if (this.#isBrowser) {
-                // 📦 Browser
-                const stream = this.#pdf.pipe(window.blobStream());
-                await this.#bloco0();
-                await this.#bloco1();
-                await this.#bloco2();
-                await this.#bloco3();
-                await this.#bloco4();
-                await this.#bloco5();
-                await this.#bloco6();
+    //Linha trajada horizontal
+    async function addLTH(page: any, x: number, y: number, h: number) {
+        const startX = Math.max(x, 4);
+        const endX = Math.min(x + h, PDF.width - 4);
+        const fixedY = PDF.height - y - 4;
 
-                if (this.#imgDemo != null) this.#demo();
-                this.#pdf.end();
+        page.drawLine({
+            start: { x: startX, y: fixedY },
+            end: { x: endX, y: fixedY },
+            color: rgb(0, 0, 0),
+            thickness: 1,
+            dashArray: [5, 3],
+        });
+    }
 
-                stream.on('finish', () => {
-                    const blob = stream.toBlob('application/pdf');
-                    const reader = new FileReader();
+    //Linha trajada vertical
+    async function addLTV(page: any, x: number, y: number, w: number) {
+        const fixedX = Math.max(4, Math.min(x, PDF.width - 4));
+        const startY = Math.max(PDF.height - y - 4, 4);
+        const endY = Math.max(PDF.height - (y + w) - 4, 4);
 
-                    reader.onloadend = () => {
-                        const result = reader.result as string;
-                        const base64 = result.slice(result.indexOf(',') + 1);
-                        resolve(base64);
-                    };
+        page.drawLine({
+            start: { x: fixedX, y: startY },
+            end: { x: fixedX, y: endY },
+            color: rgb(0, 0, 0),
+            thickness: 1,
+            dashArray: [5, 3],
+        });
+    }
 
-                    reader.onerror = reject;
-                    reader.readAsDataURL(blob);
-                });
+    async function addTXT({
+        page,
+        text,
+        x,
+        y,
+        maxWidth,
+        fontStyle = 'normal',
+        size = 7,
+        lineHeight,
+        align = 'left',
+    }: {
+        page: any;
+        text: string;
+        x: number;
+        y: number;
+        maxWidth: number;
+        fontStyle?: 'normal' | 'negrito' | 'italic';
+        size?: number;
+        lineHeight?: number;
+        align?: 'left' | 'center' | 'right';
+    }): Promise<number> {
+        let font: PDFFont;
+
+        switch (fontStyle) {
+            case 'negrito':
+                font = await PDF.doc.embedFont(StandardFonts.TimesRomanBold);
+                break;
+            case 'italic':
+                font = await PDF.doc.embedFont(StandardFonts.TimesRomanItalic);
+                break;
+            default:
+                font = await PDF.doc.embedFont(StandardFonts.TimesRoman);
+        }
+
+        // Garante que maxWidth não ultrapasse a largura da página
+        if (maxWidth + x > PDF.width) maxWidth = PDF.width - x - 2;
+
+        // Define altura da linha baseada no tamanho da fonte, se não especificada
+        const effectiveLineHeight = lineHeight ?? size * .9;
+
+        const lines = wrapText(text, maxWidth, font, size);
+
+        lines.forEach((line, index) => {
+            const textWidth = font.widthOfTextAtSize(line, size);
+            let drawX = x + 4;
+
+            if (align === 'center') {
+                drawX = x + (maxWidth - textWidth) / 2;
+            } else if (align === 'right') {
+                drawX = x + maxWidth - textWidth;
+            }
+
+            page.drawText(line, {
+                x: drawX,
+                y: ((PDF.height - effectiveLineHeight) - (y + 4)) - index * effectiveLineHeight,
+                size,
+                font,
+            });
+        });
+        return lines.length;
+    }
+
+
+    function wrapText(text: string, maxWidth: number, font: PDFFont, fontSize: number): string[] {
+        const words = text.split(' ');
+        const lines: string[] = [];
+        let line = '';
+
+        for (let i = 0; i < words.length; i++) {
+            const word = words[i];
+            const testLine = line + word + ' ';
+            const testWidth = font.widthOfTextAtSize(testLine, fontSize);
+
+            if (testWidth > maxWidth && line !== '') {
+                lines.push(line.trim());
+                line = word + ' ';
             } else {
-                // 🧱 Node.js
-                const { PassThrough } = await import('stream');
-                const stream = new PassThrough();
-                const chunks: Uint8Array[] = [];
-
-                stream.on('data', (chunk) => chunks.push(chunk));
-                stream.on('end', () => {
-                    const buffer = Buffer.concat(chunks);
-                    resolve(buffer.toString('base64'));
-                });
-
-                this.#pdf.pipe(stream);
-                await this.#bloco0();
-                await this.#bloco1();
-                await this.#bloco2();
-                await this.#bloco3();
-                await this.#bloco4();
-                await this.#bloco5();
-                await this.#bloco6();
-
-                if (this.#imgDemo != null) this.#demo();
-                this.#pdf.end();
+                line = testLine;
             }
-        });
-    }
-
-    #demo() {
-        this.#pdf.image(this.#imgDemo as string, 0, 0, { width: this.#pdfWidth }).text("", 0, 0);
-    }
-
-
-    //Recibo
-    #bloco0() {
-        this.#addRetangulo({ l: 0, t: this.#pdfHeight * 0.03, w: this.#pdfWidth * 0.805, h: this.#pdfHeight * 0.03 });
-        this.#addTXT({ aling: 'left', txt: "IDENTIFICAÇÃO E ASSINATURA DO RECEBEDOR", l: this.#pdfWidth * 0.18, t: 28, w: this.#pdfWidth * 0.5 });
-
-        this.#addRetangulo({ l: 0, t: 0, w: this.#pdfWidth * 0.805, h: this.#pdfHeight * 0.06 });
-        this.#addTXT({ aling: 'justify', l: 2, t: 3, w: this.#pdfWidth * 0.78, txt: `RECEBEMOS DE ${this.#xml.NFe.infNFe.emit.xNome} OS PRODUTOS E/OU SERVIÇOS CONSTANTES DA NOTA FISCAL ELETRÔNICA INDICADA ABAIXO. EMISSÃO: ${new Date(this.#xml.NFe.infNFe.ide.dhEmi).toLocaleString().split(",")[0]} VALOR TOTAL: R$ ${this.#xml.NFe.infNFe.total.ICMSTot.vNF} DESTINATÁRIO: ${this.#xml.NFe.infNFe.dest.xNome} - ${this.#xml.NFe.infNFe.dest.enderDest.xLgr}, N°${this.#xml.NFe.infNFe.dest.enderDest.nro}, Bairro ${this.#xml.NFe.infNFe.dest.enderDest.xBairro}, ${this.#xml.NFe.infNFe.dest.enderDest.xMun}}-${this.#xml.NFe.infNFe.dest.enderDest.UF}` });
-
-
-        this.#addRetangulo({ l: 0, t: this.#pdfHeight * 0.03, w: this.#pdfWidth * 0.175, h: this.#pdfHeight * 0.03 });
-        this.#addTXT({ aling: 'left', txt: "DATA DE RECEBIMENTO", l: 2, t: 28, w: this.#pdfWidth * 0.17 });
-
-        this.#addRetangulo({ l: 0, t: 0, w: this.#pdfWidth, h: this.#pdfHeight * 0.06 });
-        this.#addTXT({ aling: 'center', font: "bold", txt: "NF-e", l: this.#pdfWidth * 0.81, t: 6, size: 15, w: this.#pdfWidth * 0.18 });
-        this.#addTXT({ aling: 'center', font: "bold", txt: `Nº.  ${this.#xml.NFe.infNFe.ide.nNF.padStart(9, "0").slice(0, 3)}.${this.#xml.NFe.infNFe.ide.nNF.padStart(9, "0").slice(3, 6)}.${this.#xml.NFe.infNFe.ide.nNF.padStart(9, "0").slice(6, 9)}`, l: this.#pdfWidth * 0.81, t: 22, size: 12, w: this.#pdfWidth * 0.18 });
-        this.#addTXT({ aling: 'center', font: "bold", txt: `Série ${this.#xml.NFe.infNFe.ide.serie}`, l: this.#pdfWidth * 0.81, t: 34, size: 12, w: this.#pdfWidth * 0.18 });
-
-        this.#addLinhaHT({ t: this.#pdfHeight * 0.07, ls: 0, le: this.#pdfWidth })
-        this.#mtIndex += this.#pdfHeight * 0.071;
-    }
-
-    async #bloco1() {
-        this.#addRetangulo({ l: 0, t: 0, w: this.#pdfWidth * 0.41, h: this.#pdfHeight * 0.108 });
-        this.#addTXT({
-            aling: 'center', font: "italic", txt: "IDENTIFICAÇÃO DO EMITENTE",
-            l: 0, t: 3, w: this.#pdfWidth * 0.4
-        });
-
-        let mtLogo = 0;
-        if (this.#logo != null) {
-            if (this.#logo.includes("http")) {
-                this.#logo = await fetch(this.#logo).then(response => response.blob()).then(blob => this.#blob2base64(blob));
-            }
-            this.#addBase64IMG({ l: 3, t: 8, w: this.#pdfWidth * 0.41, h: this.#pdfHeight * 0.108, base64: this.#logo });
-            mtLogo = 28;
         }
-        this.#addTXT({
-            aling: 'center', font: "bold", txt: this.#xml.NFe.infNFe.emit.xNome,
-            l: 0, t: 34 + mtLogo, w: this.#pdfWidth * 0.4, size: 12
-        });
-        this.#addTXT({
-            aling: 'center', txt: `${this.#xml.NFe.infNFe.emit.enderEmit.xLgr}, N°${this.#xml.NFe.infNFe.emit.enderEmit.nro}, ${this.#xml.NFe.infNFe.emit.enderEmit.xBairro}, CEP ${this.#xml.NFe.infNFe.emit.enderEmit.CEP}`,
-            l: 0, t: 44 + mtLogo, w: this.#pdfWidth * 0.4, size: 10
-        });
-        this.#addTXT({
-            aling: 'center', txt: `${this.#xml.NFe.infNFe.emit.enderEmit.xMun} - ${this.#xml.NFe.infNFe.emit.enderEmit.UF}, Fone ${this.#xml.NFe.infNFe.emit.enderEmit.fone}`,
-            l: 0, t: 54 + mtLogo, w: this.#pdfWidth * 0.4, size: 10
-        });
-
-
-        this.#addRetangulo({ l: this.#pdfWidth * 0.41, t: 0, w: this.#pdfWidth * 0.168, h: this.#pdfHeight * 0.108 });
-        this.#addTXT({
-            aling: 'center', font: "bold", txt: "DANFE",
-            l: this.#pdfWidth * 0.41, t: 8, w: this.#pdfWidth * 0.167, size: 12
-        });
-        this.#addTXT({
-            aling: 'center', txt: "Documento Auxiliar da Nota Fiscal Eletrônica",
-            l: this.#pdfWidth * 0.41, t: 20, w: this.#pdfWidth * 0.167
-        });
-        this.#addTXT({
-            aling: 'left', txt: "0 - ENTRADA\n1 - SAÍDA",
-            l: this.#pdfWidth * 0.42, t: 39, w: this.#pdfWidth * 0.169, size: 9
-        });
-        this.#addTXT({
-            aling: 'center', font: "bold", txt: `Nº. ${this.#xml.NFe.infNFe.ide.nNF}`,
-            l: this.#pdfWidth * 0.41, t: 61, w: this.#pdfWidth * 0.167, size: 11
-        });
-        this.#addTXT({
-            aling: 'center', font: "bold", txt: `Série ${this.#xml.NFe.infNFe.ide.serie}`,
-            l: this.#pdfWidth * 0.41, t: 71, w: this.#pdfWidth * 0.167, size: 11
-        });
-        this.#addTXT({
-            aling: 'center', font: 'italic', txt: `Folha ${this.#pagIndex}/${this.#pagQtd}`,
-            l: this.#pdfWidth * 0.41, t: 81, w: this.#pdfWidth * 0.167, size: 8
-        });
-
-        this.#addRetangulo({ l: this.#pdfWidth * 0.54, t: this.#pdfHeight * 0.045, w: this.#pdfWidth * 0.023, h: this.#pdfHeight * 0.023 });
-        this.#addTXT({
-            aling: 'center', font: "bold", txt: "1",
-            l: this.#pdfWidth * 0.54, t: this.#pdfHeight * 0.05, w: this.#pdfWidth * 0.023, size: 15
-        });
-
-        //Codigo de barras
-        this.#addRetangulo({ l: this.#pdfWidth * 0.578, t: 0, w: this.#pdfWidth, h: this.#pdfHeight * 0.054 });
-
-
-        this.#addRetangulo({ l: this.#pdfWidth * 0.578, t: this.#pdfHeight * 0.054, w: this.#pdfWidth, h: this.#pdfHeight * 0.027 });
-        this.#addTXT({
-            aling: 'center', txt: "IDENTIFICAÇÃO DO EMITENTE",
-            l: this.#pdfWidth * 0.582, t: this.#pdfHeight * 0.056
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: this.#xml.NFe.infNFe['@Id'].replace("NFe", "").match(/.{1,4}/g).join(' '),
-            l: this.#pdfWidth * 0.582, t: this.#pdfHeight * 0.071,
-            w: this.#pdfWidth,
-            size: 9
-        });
-
-
-        this.#addRetangulo({ l: this.#pdfWidth * 0.578, t: this.#pdfHeight * 0.0808, w: this.#pdfWidth, h: this.#pdfHeight * 0.027 });
-        this.#addTXT({
-            aling: 'center', txt: "Consulta de autenticidade no portal nacional da NF-e",
-            l: this.#pdfWidth * 0.582, t: this.#pdfHeight * 0.084,
-            w: this.#pdfWidth,
-            size: 9
-        });
-        this.#addTXT({
-            aling: 'center', txt: "www.nfe.fazenda.gov.br/portal ou no site da Sefaz Autorizadora",
-            l: this.#pdfWidth * 0.582, t: this.#pdfHeight * 0.097,
-            w: this.#pdfWidth,
-            size: 9
-        });
-
-
-        this.#addRetangulo({ l: 0, t: this.#pdfHeight * 0.108, w: this.#pdfWidth * 0.578, h: this.#pdfHeight * 0.023 });
-        this.#addTXT({
-            aling: 'center', txt: "NATUREZA DA OPERAÇÃO",
-            l: 3, t: this.#pdfHeight * 0.11, w: this.#pdfWidth * 0.56,
-        });
-        this.#addTXT({
-            aling: 'center', txt: this.#xml.NFe.infNFe.ide.natOp,
-            l: 3, t: this.#pdfHeight * 0.121, w: this.#pdfWidth * 0.56,
-            font: "bold", size: 10
-        });
-
-
-        this.#addRetangulo({ l: this.#pdfWidth * 0.578, t: this.#pdfHeight * 0.108, w: this.#pdfWidth * 0.578, h: this.#pdfHeight * 0.023 });
-        if (typeof this.#xml.protNFe != "undefined") {
-            this.#addTXT({
-                aling: 'center', txt: "PROTOCOLO DE AUTORIZAÇÃO DE USO",
-                l: this.#pdfWidth * 0.58, t: this.#pdfHeight * 0.11
-            });
-            this.#addTXT({
-                font: "bold",
-                aling: 'center', txt: `${this.#xml.protNFe.nProt} - ${this.#formtPTBR(this.#xml.protNFe.dhRecbto)}`,
-                l: this.#pdfWidth * 0.582, t: this.#pdfHeight * 0.122,
-                w: this.#pdfWidth,
-                size: 9
-            });
+        if (line.trim() !== '') {
+            lines.push(line.trim());
         }
-
-
-
-        this.#addRetangulo({ l: 0, t: this.#pdfHeight * 0.131, w: this.#pdfWidth * 0.256, h: this.#pdfHeight * 0.023 });
-        this.#addTXT({
-            aling: 'left', txt: "INSCRIÇÃO ESTADUAL",
-            l: 2, t: this.#pdfHeight * 0.133
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: this.#xml.NFe.infNFe.emit.IE || "",
-            l: 0, t: this.#pdfHeight * 0.145,
-            w: this.#pdfWidth * 0.24,
-            size: 9
-        });
-
-
-        this.#addRetangulo({ l: this.#pdfWidth * 0.256, t: this.#pdfHeight * 0.131, w: this.#pdfWidth * 0.249, h: this.#pdfHeight * 0.023 });
-        this.#addTXT({
-            aling: 'left', txt: "INSCRIÇÃO MUNICIPAL",
-            l: this.#pdfWidth * 0.259, t: this.#pdfHeight * 0.133
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: this.#xml.NFe.infNFe.emit.IM || "",
-            l: this.#pdfWidth * 0.259, t: this.#pdfHeight * 0.145,
-            w: this.#pdfWidth * 0.24,
-            size: 9
-        });
-
-        this.#addRetangulo({ l: this.#pdfWidth * 0.505, t: this.#pdfHeight * 0.131, w: this.#pdfWidth * 0.578, h: this.#pdfHeight * 0.023 });
-        this.#addTXT({
-            aling: 'left', txt: "INSCRIÇÃO ESTADUAL DO SUBST. TRIBUT",
-            l: this.#pdfWidth * 0.507, t: this.#pdfHeight * 0.133
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: this.#xml.NFe.infNFe.emit.I_EST || "",
-            l: this.#pdfWidth * 0.507, t: this.#pdfHeight * 0.145,
-            w: this.#pdfWidth * 0.24,
-            size: 9
-        });
-
-
-        this.#addRetangulo({ l: this.#pdfWidth * 0.753, t: this.#pdfHeight * 0.131, w: this.#pdfWidth * 0.578, h: this.#pdfHeight * 0.023 });
-        this.#addTXT({
-            aling: 'center', txt: "CNPJ / CPF",
-            l: this.#pdfWidth * 0.755, t: this.#pdfHeight * 0.133
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: this.#xml.NFe.infNFe.emit.CPF || this.#xml.NFe.infNFe.emit.CNPJ,
-            l: this.#pdfWidth * 0.755, t: this.#pdfHeight * 0.145,
-            w: this.#pdfWidth,
-            size: 9
-        });
-
-        this.#mtIndex += this.#pdfHeight * 0.16;
+        return lines;
     }
 
-    #formtPTBR(dataIso: string) {
-        const data = new Date(dataIso);
+    // ----------------- FIM FUNÇÕES -----------------------
 
-        const dia = String(data.getDate()).padStart(2, '0');
-        const mes = String(data.getMonth() + 1).padStart(2, '0'); // Janeiro é 0
-        const ano = data.getFullYear();
 
-        const horas = String(data.getHours()).padStart(2, '0');
-        const minutos = String(data.getMinutes()).padStart(2, '0');
-        const segundos = String(data.getSeconds()).padStart(2, '0');
 
-        return `${dia}/${mes}/${ano} ${horas}:${minutos}:${segundos}`;
+    // --------------------- blocos ------------------------\
+
+    async function gerarBlocos() {
+        await bloco0()
+        await bloco1()
+        await bloco2()
+        await bloco3()
+        await bloco4()
+        if (imgDemo != null) await blocoDEMO();
     }
 
-    #bloco2() {
-        this.#addTXT({
-            font: "bold",
-            aling: 'left', txt: "DESTINATÁRIO / REMETENTE",
-            l: 0, t: 1,
-            size: 8
+    function blob2base64(blob: any): Promise<any> {
+        const reader = new FileReader();
+        reader.readAsDataURL(blob);
+        return new Promise(resolve => {
+            reader.onloadend = () => {
+                resolve(reader.result);
+            };
         });
-
-        this.#addRetangulo({ l: 0, t: 8, w: this.#pdfWidth * 0.61, h: this.#pdfHeight * 0.023 });
-        this.#addTXT({
-            aling: 'left', txt: "NOME / RAZÃO SOCIAL",
-            l: 2, t: 10
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'left', txt: this.#xml.NFe.infNFe.dest.xNome,
-            l: 2, t: this.#pdfHeight * 0.023,
-            w: this.#pdfWidth * 0.61,
-            size: 9
-        });
-
-
-        this.#addRetangulo({ l: this.#pdfWidth * 0.61, t: 8, w: this.#pdfWidth * 0.225, h: this.#pdfHeight * 0.023 });
-        this.#addTXT({
-            aling: 'left', txt: "CNPJ / CPF",
-            l: this.#pdfWidth * 0.61, t: 10
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: this.#xml.NFe.infNFe.dest.CPF || this.#xml.NFe.infNFe.dest.CNPJ,
-            l: this.#pdfWidth * 0.61, t: this.#pdfHeight * 0.023,
-            w: this.#pdfWidth * 0.225,
-            size: 9
-        });
-
-
-        this.#addRetangulo({ l: this.#pdfWidth * 0.835, t: 8, w: this.#pdfWidth * 0.225, h: this.#pdfHeight * 0.023 });
-        this.#addTXT({
-            aling: 'left', txt: "DATA DA EMISSÃO",
-            l: this.#pdfWidth * 0.835, t: 10
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: (this.#formtPTBR(this.#xml.NFe.infNFe.ide.dhEmi)).split(" ")[0],
-            l: this.#pdfWidth * 0.835, t: this.#pdfHeight * 0.023,
-            w: this.#pdfWidth * 0.15,
-            size: 9
-        });
-
-        this.#addRetangulo({ l: 0, t: 27.5, w: this.#pdfWidth * 0.47, h: 19 });
-        this.#addTXT({
-            aling: 'left', txt: "ENDEREÇO",
-            l: 2, t: 29
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'left', txt: this.#xml.NFe.infNFe.dest.enderDest.xLgr,
-            l: 2, t: 39,
-            w: this.#pdfWidth * 0.45,
-            size: 9
-        });
-
-
-        this.#addRetangulo({ l: this.#pdfWidth * 0.47, t: 27.5, w: this.#pdfWidth * 0.205, h: 19 });
-        this.#addTXT({
-            aling: 'left', txt: "BAIRRO / DISTRITO",
-            l: this.#pdfWidth * 0.472, t: 29
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: this.#xml.NFe.infNFe.dest.enderDest.xBairro,
-            l: this.#pdfWidth * 0.472, t: 39,
-            w: this.#pdfWidth * 0.2,
-            size: 9
-        });
-
-
-        this.#addRetangulo({ l: this.#pdfWidth * 0.675, t: 27.5, w: this.#pdfWidth * 0.16, h: 19 });
-        this.#addTXT({
-            aling: 'left', txt: "CEP",
-            l: this.#pdfWidth * 0.677, t: 29
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: this.#xml.NFe.infNFe.dest.enderDest.CEP,
-            l: this.#pdfWidth * 0.677, t: 39,
-            w: this.#pdfWidth * 0.16,
-            size: 9
-        });
-
-        this.#addRetangulo({ l: this.#pdfWidth * 0.835, t: 27.5, w: this.#pdfWidth * 0.225, h: 19 });
-        this.#addTXT({
-            aling: 'left', txt: "DATA DA SAÍDA/ENTRADA",
-            l: this.#pdfWidth * 0.837, t: 29
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: ((this.#formtPTBR(this.#xml.NFe.infNFe.ide.dhEmi)).split(" ")[0]),
-            l: this.#pdfWidth * 0.837, t: 39,
-            w: this.#pdfWidth * 0.16,
-            size: 9
-        });
-
-
-        this.#addRetangulo({ l: 0, t: 46.5, w: this.#pdfWidth * 0.47, h: 19 });
-        this.#addTXT({
-            aling: 'left', txt: "MUNICIPIO",
-            l: 2, t: 48.5
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'left', txt: this.#xml.NFe.infNFe.dest.enderDest.xMun,
-            l: 2, t: 58.5,
-            w: this.#pdfWidth * 0.45,
-            size: 9
-        });
-
-
-        this.#addRetangulo({ l: this.#pdfWidth * 0.47, t: 46.5, w: this.#pdfWidth * 0.04, h: 19 });
-        this.#addTXT({
-            aling: 'left', txt: "UF",
-            l: this.#pdfWidth * 0.472, t: 48.5
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: this.#xml.NFe.infNFe.dest.enderDest.UF,
-            l: this.#pdfWidth * 0.47, t: 58.5,
-            w: this.#pdfWidth * 0.04,
-            size: 9
-        });
-
-
-        this.#addRetangulo({ l: this.#pdfWidth * 0.510, t: 46.5, w: this.#pdfWidth * 0.165, h: 19 });
-        this.#addTXT({
-            aling: 'left', txt: "FONE / FAX",
-            l: this.#pdfWidth * 0.512, t: 48.5
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: this.#xml.NFe.infNFe.dest.enderDest.fone || "",
-            l: this.#pdfWidth * 0.512, t: 58.5,
-            w: this.#pdfWidth * 0.165,
-            size: 9
-        });
-
-
-        this.#addRetangulo({ l: this.#pdfWidth * 0.675, t: 46.5, w: this.#pdfWidth * 0.16, h: 19 });
-        this.#addTXT({
-            aling: 'left', txt: "INSCRIÇÃO ESTADUAL",
-            l: this.#pdfWidth * 0.677, t: 48.5
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: this.#xml.NFe.infNFe.dest.IE || "",
-            l: this.#pdfWidth * 0.677, t: 58.5,
-            w: this.#pdfWidth * 0.16,
-            size: 9
-        });
-
-        this.#addRetangulo({ l: this.#pdfWidth * 0.835, t: 46.5, w: this.#pdfWidth * 0.1565, h: 19 });
-        this.#addTXT({
-            aling: 'left', txt: "HORA DA SAÍDA/ENTRADA",
-            l: this.#pdfWidth * 0.834, t: 48.5
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: ((this.#formtPTBR(this.#xml.NFe.infNFe.ide.dhEmi)).split(" ")[1]),
-            l: this.#pdfWidth * 0.834, t: 58.5,
-            w: this.#pdfWidth * 0.1565,
-            size: 9
-        });
-        this.#mtIndex += 69;
     }
 
-    #bloco3(leftM = 2, addDesc = true) {
-        if (addDesc) {
-            this.#addTXT({
-                font: "bold",
-                aling: 'left',
-                txt: "PAGAMENTO",
-                l: 0, t: 1,
-                size: 8
-            });
-        }
+    async function bloco0(page = PDF.pages[(PDF.pages.length - 1)]) {
+        addRet(page, 0, PDF.mtBlock + 0, PDF.width, 50);
+        addRet(page, 0, PDF.mtBlock + 0, PDF.width * 0.8, 25);
+        addRet(page, 0, PDF.mtBlock + 0, PDF.width * 0.8, 25);
+        addRet(page, 0, PDF.mtBlock + 25, PDF.width * 0.8, 25);
+        addRet(page, PDF.width * 0.17, PDF.mtBlock + 25, PDF.width * 0.63, 25);
 
-        const pagamentos = this.#xml?.NFe?.infNFe?.pag?.detPag ?? [];
-        const detPag = Array.isArray(pagamentos) ? pagamentos : [pagamentos];
+        addTXT({ page, text: "RECEBEMOS DE 47.506.306 KALMON VALADAO TAVARES OS PRODUTOS E/OU SERVIÇOS CONSTANTES DA NOTA FISCAL ELETRÔNICA INDICADA ABAIXO. EMISSÃO: 25/04/2025 VALOR TOTAL: R$ 596,00 DESTINATÁRIO: NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL - AV PARA, 138 UNIAO NOVA XAVANTINA-MT", x: 2, y: PDF.mtBlock + 2, maxWidth: PDF.width * 0.78 });
+        addTXT({ page, text: "DATA DE RECEBIMENTO", x: 2, y: PDF.mtBlock + 25, maxWidth: PDF.width * 0.78 });
+        addTXT({ page, text: "DATA DE RECEBIMENTO", x: PDF.width * 0.173, y: PDF.mtBlock + 25, maxWidth: PDF.width });
+        addTXT({ page, size: 18, text: "NFe", x: PDF.width * 0.8, y: PDF.mtBlock, maxWidth: PDF.width * 0.8, align: "center" });
 
-        let top = 8; // posição vertical inicial
-
-        for (const pag of detPag) {
-            const formaPagamento = this.#traduzirFormaPagamento(pag.tPag);
-            const valorPagamento = parseFloat(pag.vPag).toLocaleString('pt-BR', {
-                style: 'currency',
-                currency: 'BRL'
-            });
-
-            this.#addRetangulo({ l: leftM, t: top, w: this.#pdfWidth * 0.25, h: 19 });
-
-            this.#addTXT({
-                aling: 'left',
-                txt: "Forma:",
-                l: leftM,
-                t: top + 1
-            });
-            this.#addTXT({
-                aling: 'right',
-                txt: formaPagamento,
-                l: leftM,
-                t: top + 1,
-                w: this.#pdfWidth * 0.24,
-                size: 9
-            });
-
-            this.#addTXT({
-                aling: 'left',
-                txt: "Valor:",
-                l: leftM,
-                t: top + 10,
-                w: this.#pdfWidth * 0.25,
-                size: 9
-            });
-            this.#addTXT({
-                aling: 'right',
-                txt: valorPagamento,
-                l: leftM,
-                t: top + 10,
-                w: this.#pdfWidth * 0.24,
-                size: 9
-            });
-
-            top += 30; // pular espaço para o próximo pagamento
-        }
-
-        this.#mtIndex += top;
+        addTXT({ page, size: 11, text: "Nº. 000.000.384", x: PDF.width * 0.8, y: PDF.mtBlock + 20, maxWidth: PDF.width * 0.8, align: "center" });
+        addTXT({ page, size: 11, text: "Série 000", x: PDF.width * 0.8, y: PDF.mtBlock + 30, maxWidth: PDF.width * 0.8, align: "center" });
+        addLTH(page, 0, PDF.mtBlock + 56, PDF.width);
+        PDF.mtBlock += 60;
     }
 
-    #traduzirFormaPagamento(tPag: string): string {
-        const formasPagamento: { [key: string]: string } = {
-            '01': 'Dinheiro',
-            '02': 'Cheque',
-            '03': 'Cartão Crédito',
-            '04': 'Cartão Débito',
-            '05': 'Crédito Loja',
-            '10': 'Vale Alimentação',
-            '11': 'Vale Refeição',
-            '12': 'Vale Presente',
-            '13': 'Vale Combustível',
-            '14': 'Duplicata',
-            '15': 'Boleto',
-            '16': 'Depósito',
-            '17': 'PIX Dinâmico',
-            '18': 'Transferência',
-            '19': 'Fidelidade',
-            '20': 'PIX Estático',
-            '21': 'Crédito Loja',
-            '22': 'Falha Eletrônico',
-            '90': 'Sem Pagamento',
-            '99': 'Outros'
-        };
-        return formasPagamento[tPag] || 'Desconhecido';
+    async function bloco1(page = PDF.pages[(PDF.pages.length - 1)]) {
+        addRet(page, 0, PDF.mtBlock, PDF.width, 132);
+        addRet(page, 0, PDF.mtBlock, PDF.width, 92);
+        addRet(page, 0, PDF.mtBlock, PDF.width, 112);
+        //addRet(page, PDF.width * 0.401, PDF.mtBlock + 0, PDF.width, 112);
+        addRet(page, PDF.width * 0.53, PDF.mtBlock + 38, 16, 20);
+        addRet(page, PDF.width * 0.57, PDF.mtBlock + 0, PDF.width, 47);
+        addRet(page, PDF.width * 0.57, PDF.mtBlock + 47, PDF.width, 23);
+        addRet(page, PDF.width * 0.57, PDF.mtBlock + 70, PDF.width, 22);
+        addRet(page, PDF.width * 0.57, PDF.mtBlock + 92, PDF.width, 20);
+        addRet(page, PDF.width * 0.745, PDF.mtBlock + 112, PDF.width, 20);
+        addRet(page, PDF.width * 0.497, PDF.mtBlock + 112, PDF.width, 20);
+        addRet(page, PDF.width * 0.25, PDF.mtBlock + 112, PDF.width, 20);
+
+        addTXT({ page, text: "IDENTIFICAÇÃO DO EMITENTE", x: 0, y: PDF.mtBlock + 2, maxWidth: PDF.width * 0.4, align: "center" });
+
+        //!FALTA ADICIONAR LOGO
+        addTXT({ page, size: 12, text: "47.506.306 KALMON VALADAO TAVARES", x: 0, y: PDF.mtBlock + 45, maxWidth: PDF.width * 0.4, align: "center" });
+        addTXT({ page, size: 9, text: "AV PARA, N°138", x: 0, y: PDF.mtBlock + 58, maxWidth: PDF.width * 0.42, align: "center" });
+        addTXT({ page, size: 9, text: "UNIÃO - 78690-000", x: 0, y: PDF.mtBlock + 66, maxWidth: PDF.width * 0.42, align: "center" });
+        addTXT({ page, size: 9, text: "Nova Xavantina - MT Fone/Fax: 66981352912", x: 0, y: PDF.mtBlock + 74, maxWidth: PDF.width * 0.42, align: "center" });
+
+
+        addTXT({ page, size: 16, text: "DANFE", x: PDF.width * 0.393, y: PDF.mtBlock + 3, maxWidth: PDF.width * 0.2, align: "center" });
+        addTXT({ page, size: 8, text: "Documento Auxiliar da Nota Fiscal Eletrônica", x: PDF.width * 0.4, y: PDF.mtBlock + 19, maxWidth: PDF.width * 0.18, align: "center" });
+        addTXT({ page, size: 8, text: "0 - ENTRADA", x: PDF.width * 0.415, y: PDF.mtBlock + 42, maxWidth: PDF.width * 0.19, align: "left" });
+        addTXT({ page, size: 8, text: "1 - SAÍDA", x: PDF.width * 0.415, y: PDF.mtBlock + 50, maxWidth: PDF.width * 0.19, align: "left" });
+        addTXT({ page, size: 20, text: "1", x: PDF.width * 0.534, y: PDF.mtBlock + 37, maxWidth: PDF.width * 0.19, align: "left" });
+        addTXT({ page, size: 10, text: "Nº. 000.000.264", x: PDF.width * 0.4, y: PDF.mtBlock + 63, maxWidth: PDF.width * 0.19, align: "center" });
+        addTXT({ page, size: 10, text: "Série 000", x: PDF.width * 0.398, y: PDF.mtBlock + 72, maxWidth: PDF.width * 0.19, align: "center" });
+        addTXT({ page, size: 8, text: "Série 000", x: PDF.width * 0.398, y: PDF.mtBlock + 82, maxWidth: PDF.width * 0.19, align: "center" });
+
+
+        addTXT({ page, text: "CHAVE DE ACESSO", x: PDF.width * 0.575, y: PDF.mtBlock + 47, maxWidth: PDF.width * 0.19 });
+        addTXT({ page, size: 8, text: "5125 0547 5063 0600 0188 5500 0000 0002 6410 0002 0233", x: PDF.width * 0.595, y: PDF.mtBlock + 58, maxWidth: PDF.width * 0.39, align: "center" });
+        addTXT({ page, size: 8, text: "Consulta de autenticidade no portal nacional da NF-e", x: PDF.width * 0.595, y: PDF.mtBlock + 70, maxWidth: PDF.width * 0.39, align: "center" });
+        addTXT({ page, size: 8, text: " www.nfe.fazenda.gov.br/portal ou no site da Sefaz Autorizadora", x: PDF.width * 0.595, y: PDF.mtBlock + 81, maxWidth: PDF.width * 0.39, align: "center" });
+        addTXT({ page, text: "PROTOCOLO DE AUTORIZAÇÃO DE USO", x: PDF.width * 0.575, y: PDF.mtBlock + 92, maxWidth: PDF.width * 0.29 });
+        addTXT({ page, size: 10, text: "151250037548938  -  05/05/2025 15:17:16", x: PDF.width * 0.595, y: PDF.mtBlock + 101, maxWidth: PDF.width * 0.39, align: "center" });
+        addTXT({ page, text: "NATUREZA DA OPERAÇÃO", x: 3, y: PDF.mtBlock + 92, maxWidth: PDF.width * 0.29 });
+        addTXT({ page, size: 10, text: "VENDA", x: 3, y: PDF.mtBlock + 101, maxWidth: PDF.width * 0.58, align: "center" });
+
+        addTXT({ page, text: "INSCRIÇÃO ESTADUAL", x: 3, y: PDF.mtBlock + 112, maxWidth: PDF.width * 0.29 });
+        addTXT({ page, size: 10, text: " 139551956", x: 3, y: PDF.mtBlock + 121, maxWidth: PDF.width * 0.25, align: "center" });
+
+        addTXT({ page, text: " INSCRIÇÃO MUNICIPAL", x: PDF.width * 0.255, y: PDF.mtBlock + 112, maxWidth: PDF.width * 0.29 });
+        addTXT({ page, size: 10, text: "xxxxxx", x: PDF.width * 0.355, y: PDF.mtBlock + 121, maxWidth: PDF.width * 0.05, align: "center" });
+
+        addTXT({ page, text: "INSCRIÇÃO ESTADUAL DO SUBST. TRIBUT.", x: PDF.width * 0.5, y: PDF.mtBlock + 112, maxWidth: PDF.width * 0.29 });
+        addTXT({ page, size: 10, text: "xxxxx", x: PDF.width * 0.6, y: PDF.mtBlock + 121, maxWidth: PDF.width * 0.05, align: "center" });
+
+        addTXT({ page, text: "CNPJ/CPF", x: PDF.width * 0.75, y: PDF.mtBlock + 112, maxWidth: PDF.width * 0.29 });
+        addTXT({ page, size: 10, text: "47.506.306/0001-88666", x: PDF.width * 0.845, y: PDF.mtBlock + 121, maxWidth: PDF.width * 0.05, align: "center" });
+        PDF.mtBlock += 133;
     }
 
-    #bloco4() {
-        const ICMS = {
+    async function bloco2(page = PDF.pages[(PDF.pages.length - 1)]) {
+        addRet(page, 0, PDF.mtBlock + 10, PDF.width * 0.603, 20);
+        addRet(page, PDF.width * 0.603, PDF.mtBlock + 10, PDF.width * 0.222, 20);
+        addRet(page, PDF.width * 0.825, PDF.mtBlock + 10, PDF.width * 0.2, 20);
+        addRet(page, PDF.width * 0.665, PDF.mtBlock + 30, PDF.width, 20);
+        addRet(page, PDF.width * 0.825, PDF.mtBlock + 50, PDF.width * 0.2, 20);
+        addRet(page, PDF.width * 0.665, PDF.mtBlock + 30, PDF.width * 0.16, 40);
+        addRet(page, PDF.width * 0.503, PDF.mtBlock + 50, PDF.width * 0.162, 20);
+        addRet(page, PDF.width * 0.465, PDF.mtBlock + 50, PDF.width * 0.038, 20);
+        addRet(page, PDF.width * 0, PDF.mtBlock + 50, PDF.width * 0.465, 20);
+        addRet(page, PDF.width * 0, PDF.mtBlock + 30, PDF.width * 0.465, 20);
+        //addRet(page, 0, PDF.mtBlock + 30, PDF.width, 20);
+        addTXT({ page, text: "DESTINATÁRIO / REMETENTE", x: 3, y: PDF.mtBlock + 2, maxWidth: PDF.width * 0.4 });
+
+
+        addTXT({ page, text: "NOME / RAZÃO SOCIAL", x: 3, y: PDF.mtBlock + 10, maxWidth: PDF.width * 0.4 });
+        addTXT({ page, size: 9, text: "NOVA XAVANTINA CAMARA MUNICIPAL", x: 3, y: PDF.mtBlock + 20, maxWidth: PDF.width * 0.42 });
+
+        addTXT({ page, text: "CNPJ/CPF", x: PDF.width * 0.61, y: PDF.mtBlock + 10, maxWidth: PDF.width * 0.4 });
+        addTXT({ page, size: 9, text: "15.372.402/0001-94", x: PDF.width * 0.51, y: PDF.mtBlock + 20, maxWidth: PDF.width * 0.42, align: "center" });
+
+
+        addTXT({ page, text: "DATA DA EMISSÃO", x: PDF.width * 0.83, y: PDF.mtBlock + 10, maxWidth: PDF.width * 0.4 });
+        addTXT({ page, size: 9, text: "23/05/2025", x: PDF.width * 0.83, y: PDF.mtBlock + 20, maxWidth: PDF.width * 0.42, align: "center" });
+
+        addTXT({ page, text: "DATA DA EMISSÃO", x: 2, y: PDF.mtBlock + 31, maxWidth: PDF.width * 0.4 });
+        addTXT({ page, size: 9, text: "AV PARA, N° 138", x: 3, y: PDF.mtBlock + 40, maxWidth: PDF.width * 0.42, align: "left" });
+
+        addTXT({ page, text: "BAIRRO", x: PDF.width * 0.47, y: PDF.mtBlock + 31, maxWidth: PDF.width * 0.4 });
+        addTXT({ page, size: 9, text: "UNIÃO", x: PDF.width * 0.47, y: PDF.mtBlock + 40, maxWidth: PDF.width * 0.21, align: "center" });
+
+        addTXT({ page, text: "CEP", x: PDF.width * 0.67, y: PDF.mtBlock + 31, maxWidth: PDF.width * 0.4 });
+        addTXT({ page, size: 9, text: "78690-000", x: PDF.width * 0.67, y: PDF.mtBlock + 40, maxWidth: PDF.width * 0.17, align: "center" });
+
+        addTXT({ page, text: "DATA DA SAÍDA/ENTRDA", x: PDF.width * 0.83, y: PDF.mtBlock + 31, maxWidth: PDF.width * 0.4 });
+        addTXT({ page, size: 9, text: "78690-000", x: PDF.width * 0.83, y: PDF.mtBlock + 40, maxWidth: PDF.width * 0.17, align: "center" });
+
+        addTXT({ page, text: "MUNICIPIO", x: 2, y: PDF.mtBlock + 50, maxWidth: PDF.width * 0.4 });
+        addTXT({ page, size: 9, text: "NOVA XAVANTINA", x: 3, y: PDF.mtBlock + 60, maxWidth: PDF.width * 0.42, align: "left" });
+
+        addTXT({ page, text: "UF", x: PDF.width * 0.47, y: PDF.mtBlock + 50, maxWidth: PDF.width * 0.4 });
+        addTXT({ page, size: 9, text: "MT", x: PDF.width * 0.473, y: PDF.mtBlock + 60, maxWidth: PDF.width * 0.21, align: "left" });
+
+
+        addTXT({ page, text: "BAIRRO", x: PDF.width * 0.505, y: PDF.mtBlock + 50, maxWidth: PDF.width * 0.4 });
+        addTXT({ page, size: 9, text: "UNIÃO", x: PDF.width * 0.505, y: PDF.mtBlock + 60, maxWidth: PDF.width * 0.17, align: "center" });
+
+
+        addTXT({ page, text: "INSCRIÇÃO ESTADUAL", x: PDF.width * 0.67, y: PDF.mtBlock + 50, maxWidth: PDF.width * 0.4 });
+        addTXT({ page, size: 9, text: "UNIÃO", x: PDF.width * 0.67, y: PDF.mtBlock + 60, maxWidth: PDF.width * 0.17, align: "center" });
+
+        addTXT({ page, text: "DATA DA SAÍDA/ENTRDA", x: PDF.width * 0.83, y: PDF.mtBlock + 50, maxWidth: PDF.width * 0.4 });
+        addTXT({ page, size: 9, text: "78690-000", x: PDF.width * 0.83, y: PDF.mtBlock + 60, maxWidth: PDF.width * 0.17, align: "center" });
+        PDF.mtBlock += 73;
+    }
+
+    async function bloco3(page = PDF.pages[(PDF.pages.length - 1)]) {
+        addTXT({ page, text: "PAGAMENTO", x: 3, y: PDF.mtBlock, maxWidth: PDF.width * 0.25 });
+        addRet(page, 0, PDF.mtBlock + 7, PDF.width * 0.25, 20);
+        addTXT({ page, text: "FORMA", x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.25 });
+        addTXT({ page, text: "DINHEIRO", x: 3, y: PDF.mtBlock + 18, maxWidth: PDF.width * 0.25 });
+
+        addTXT({ page, text: "Dinheiro", x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.245, align: "right" });
+        addTXT({ page, text: "R$ 600,00", x: 3, y: PDF.mtBlock + 18, maxWidth: PDF.width * 0.245, align: "right" });
+        PDF.mtBlock += 28;
+    }
+
+    async function bloco4(page = PDF.pages[(PDF.pages.length - 1)]) {
+        const ICMS: any = {
             vBC: "Base Calc. ICMS",
             vICMS: "Valor ICMS",
             vICMSDeson: "ICMS Desonerado",
@@ -606,634 +349,74 @@ class danfe {
             vOutro: "Outras Desp. Acess.",
             vNF: "Valor Total NF-e"
         };
-
-        this.#addTXT({
-            font: "bold",
-            aling: 'left', txt: " CÁLCULO DO IMPOSTO",
-            l: 0, t: 1,
-            size: 8
-        });
-
-        let top = 0, left = 0;
-        (Object.keys(ICMS) as Array<keyof typeof ICMS>).forEach((key, index) => {
-            this.#addRetangulo({ l: 0 + left, t: 8 + top, w: this.#pdfWidth * 0.11, h: 19 });
-            this.#addTXT({
-                aling: 'left', txt: ICMS[key],
-                l: 2 + left, t: 9 + top, w: this.#pdfWidth * 0.11
-            });
-            this.#addTXT({
-                font: "bold",
-                aling: 'right', txt: `R$ ${this.#xml.NFe.infNFe.total.ICMSTot[key]}`,
-                l: 0 + left, t: 19 + top,
-                w: ((this.#pdfWidth - this.#pdfMargin) * 0.105) - (left > 0 ? 0 : 5),
-                size: 9
-            });
-            left += this.#pdfWidth * 0.11;
-            if ((1 + index) % 9 === 0) {
-                top += 19;
-                left = 0;
+        addTXT({ page, text: "PAGAMENTO", x: 3, y: PDF.mtBlock, maxWidth: PDF.width * 0.25 });
+        let nextY = PDF.mtBlock + 8,
+            nextX = 0,
+            limitY = (PDF.width-8);
+        for (const key of Object.keys(ICMS)) {
+            await addRet(page, (limitY * 0.111) * nextX, nextY, limitY * 0.111, 20);
+            addTXT({ page, text: ICMS[key], x: 2 + (limitY * 0.111) * nextX, y: nextY + 1, maxWidth: limitY * 0.111 });
+            addTXT({ page, size: 10, text: "0,00", x: (limitY * 0.111) * nextX, y: nextY+9, maxWidth: limitY * 0.111, align: "right" });
+            nextX++;
+            if (nextX >= 9) {
+                nextX = 0;
+                nextY += 20;
             }
-        });
-
-        this.#mtIndex += 30 + top;
+        }
     }
 
-    #traduzirTipoFrete(codigo: string): string {
-        const tiposFrete: { [key: string]: string } = {
-            '0': 'Frete por Conta do Remetente (CIF)',
-            '1': 'Frete por Conta do Destinatário (FOB)',
-            '2': 'Frete por Conta de Terceiros',
-            '3': 'Transporte Próprio Remetente',
-            '4': 'Transporte Próprio Destinatário',
-            '9': 'Sem Transporte'
-        };
-        return tiposFrete[String(codigo)] ?? 'Tipo de Frete Desconhecido';
+    async function blocoDEMO(page = PDF.pages[(PDF.pages.length - 1)]) {
+        imgDemo = await fetch(imgDemo || "").then(response => response.blob()).then(blob => blob2base64(blob));
+
+        // Decodifica Base64 e embeleza no PDF
+        const base64Data = imgDemo?.split(',')[1] as ""; // tira "data:image/png;base64," se tiver
+        const bytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+
+        // Detecta o tipo (png ou jpg?)
+        const isPng = imgDemo?.startsWith('data:image/png');
+
+        // Embed imagem
+        const image = isPng
+            ? await PDF.doc.embedPng(bytes)
+            : await PDF.doc.embedJpg(bytes);
+
+        page.drawImage(image, {
+            x: 0,
+            y: 0, // Corrige porque pdf-lib desenha do canto inferior da imagem
+            width: PDF.width,
+            height: PDF.height,
+        });
     }
 
-    #bloco5() {
-        this.#addTXT({
-            font: "bold",
-            aling: 'left', txt: "TRANSPORTADOR / VOLUMES TRANSPORTADOS",
-            l: 0, t: 1,
-            size: 8
-        });
+    // --------------------- FIM blocos ------------------------
 
-        this.#addRetangulo({ l: 0, t: 8, w: this.#pdfWidth * 0.29, h: 19 });
-        this.#addTXT({
-            aling: 'left', txt: "NOME / RAZÃO SOCIAL",
-            l: 2, t: 9
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: this.#xml.NFe.infNFe.transp.CPF || this.#xml.NFe.infNFe.transp.CNPJ || "",
-            l: 2, t: 19,
-            w: this.#pdfWidth * 0.29,
-            size: 9
-        });
+    return new Promise(async (resolve, reject) => {
+        if (isBrowser) {
+            // 📦 Browser
+            await gerarBlocos();
 
-
-        this.#addRetangulo({ l: this.#pdfWidth * 0.29, t: 8, w: this.#pdfWidth * 0.15, h: 19 });
-        this.#addTXT({
-            aling: 'left', txt: "FRETE",
-            l: this.#pdfWidth * 0.293, t: 9
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: `${this.#xml.NFe.infNFe.transp.modFrete} - ${this.#traduzirTipoFrete(this.#xml.NFe.infNFe.transp.modFrete)}`,
-            l: this.#pdfWidth * 0.293, t: 19,
-            w: this.#pdfWidth * 0.15,
-            size: 9
-        });
-
-        this.#addRetangulo({ l: this.#pdfWidth * 0.44, t: 8, w: this.#pdfWidth * 0.15, h: 19 });
-        this.#addTXT({
-            aling: 'left', txt: "CÓDIGO ANTT",
-            l: this.#pdfWidth * 0.442, t: 9
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: (this.#xml.NFe.infNFe.transp?.veicTransp?.RNTC) || ""            ,
-            l: this.#pdfWidth * 0.44, t: 19,
-            w: this.#pdfWidth * 0.15,
-            size: 9
-        });
-
-        this.#addRetangulo({ l: this.#pdfWidth * 0.59, t: 8, w: this.#pdfWidth * 0.15, h: 19 });
-        this.#addTXT({
-            aling: 'left', txt: "PLACA DO VEÍCULO",
-            l: this.#pdfWidth * 0.592, t: 9
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: (this.#xml.NFe.infNFe.transp?.veicTransp?.placa) || "",
-            l: this.#pdfWidth * 0.59, t: 19,
-            w: this.#pdfWidth * 0.15,
-            size: 9
-        });
-
-        this.#addRetangulo({ l: this.#pdfWidth * 0.74, t: 8, w: this.#pdfWidth * 0.04, h: 19 });
-        this.#addTXT({
-            aling: 'left', txt: "UF",
-            l: this.#pdfWidth * 0.742, t: 9
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: (this.#xml.NFe.infNFe.transp?.veicTransp?.UF) || "",
-            l: this.#pdfWidth * 0.742, t: 19,
-            w: this.#pdfWidth * 0.04,
-            size: 9
-        });
-
-        this.#addRetangulo({ l: this.#pdfWidth * 0.78, t: 8, w: this.#pdfWidth * 0.22, h: 19 });
-        this.#addTXT({
-            aling: 'left', txt: "CNPJ / CPF",
-            l: this.#pdfWidth * 0.782, t: 9
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: (this.#xml.NFe.infNFe.transp?.transporta?.CNPJ) || (this.#xml.NFe.infNFe.transp?.transporta?.CPF) || "",
-            l: this.#pdfWidth * 0.78, t: 19,
-            w: this.#pdfWidth * 0.22,
-            size: 9
-        });
-
-
-        this.#addRetangulo({ l: 0, t: 27, w: this.#pdfWidth * 0.44, h: 19 });
-        this.#addTXT({
-            aling: 'left', txt: "ENDEREÇO",
-            l: 2, t: 28
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: (this.#xml.NFe.infNFe.transp?.transporta?.xEnder) || "",
-            l: 2, t: 38,
-            w: this.#pdfWidth * 0.44,
-            size: 9
-        });
-
-        this.#addRetangulo({ l: this.#pdfWidth * 0.44, t: 27, w: this.#pdfWidth * 0.30, h: 19 });
-        this.#addTXT({
-            aling: 'left', txt: "MUNICÍPIO",
-            l: this.#pdfWidth * 0.442, t: 28
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: (this.#xml.NFe.infNFe.transp?.transporta?.xMun) || "",
-            l: this.#pdfWidth * 0.44, t: 38,
-            w: this.#pdfWidth * 0.30,
-            size: 9
-        });
-
-        this.#addRetangulo({ l: this.#pdfWidth * 0.74, t: 27, w: this.#pdfWidth * 0.04, h: 19 });
-        this.#addTXT({
-            aling: 'left', txt: "UF",
-            l: this.#pdfWidth * 0.742, t: 28
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: (this.#xml.NFe.infNFe.transp?.transporta?.UF) || "",
-            l: this.#pdfWidth * 0.742, t: 38,
-            w: this.#pdfWidth * 0.04,
-            size: 9
-        });
-
-        this.#addRetangulo({ l: this.#pdfWidth * 0.78, t: 27, w: this.#pdfWidth * 0.22, h: 19 });
-        this.#addTXT({
-            aling: 'left', txt: " INSCRIÇÃO ESTADUAL",
-            l: this.#pdfWidth * 0.782, t: 28
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: (this.#xml.NFe.infNFe.transp?.transporta?.IE) || "",
-            l: this.#pdfWidth * 0.78, t: 38,
-            w: this.#pdfWidth * 0.22,
-            size: 9
-        });
-
-
-        this.#addRetangulo({ l: 0, t: 46, w: this.#pdfWidth * 0.11, h: 19 });
-        this.#addTXT({
-            aling: 'left', txt: "QUANTIDADE",
-            l: 2, t: 47
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: (this.#xml.NFe.infNFe.transp?.vol?.qVol) || "",
-            l: 2, t: 57,
-            w: this.#pdfWidth * 0.11,
-            size: 9
-        });
-
-        this.#addRetangulo({ l: this.#pdfWidth * 0.11, t: 46, w: this.#pdfWidth * 0.17, h: 19 });
-        this.#addTXT({
-            aling: 'left', txt: "ESPÉCIE",
-            l: this.#pdfWidth * 0.112, t: 47
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: (this.#xml.NFe.infNFe.transp?.vol?.esp) || "",
-            l: this.#pdfWidth * 0.112, t: 57,
-            w: this.#pdfWidth * 0.17,
-            size: 9
-        });
-
-
-
-        this.#addRetangulo({ l: this.#pdfWidth * 0.28, t: 46, w: this.#pdfWidth * 0.16, h: 19 });
-        this.#addTXT({
-            aling: 'left', txt: "MARCA",
-            l: this.#pdfWidth * 0.282, t: 47
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: (this.#xml.NFe.infNFe.transp?.vol?.marca) || "",
-            l: this.#pdfWidth * 0.28, t: 57,
-            w: this.#pdfWidth * 0.16,
-            size: 9
-        });
-
-
-        this.#addRetangulo({ l: this.#pdfWidth * 0.44, t: 46, w: this.#pdfWidth * 0.17, h: 19 });
-        this.#addTXT({
-            aling: 'left', txt: "NUMERAÇÃO",
-            l: this.#pdfWidth * 0.442, t: 47
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: (this.#xml.NFe.infNFe.transp?.vol?.nVol) || "",
-            l: this.#pdfWidth * 0.44, t: 57,
-            w: this.#pdfWidth * 0.16,
-            size: 9
-        });
-
-        this.#addRetangulo({ l: this.#pdfWidth * 0.61, t: 46, w: this.#pdfWidth * 0.19, h: 19 });
-        this.#addTXT({
-            aling: 'left', txt: "PESO BRUTO",
-            l: this.#pdfWidth * 0.612, t: 47
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: (this.#xml.NFe.infNFe.transp?.vol?.pesoB) || "",
-            l: this.#pdfWidth * 0.61, t: 57,
-            w: this.#pdfWidth * 0.16,
-            size: 9
-        });
-
-
-        this.#addRetangulo({ l: this.#pdfWidth * 0.80, t: 46, w: this.#pdfWidth * 0.20, h: 19 });
-        this.#addTXT({
-            aling: 'left', txt: "PESO LÍQUIDO",
-            l: this.#pdfWidth * 0.802, t: 47
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: (this.#xml.NFe.infNFe.transp?.vol?.pesoL) || "",
-            l: this.#pdfWidth * 0.80, t: 57,
-            w: this.#pdfWidth * 0.2,
-            size: 9
-        });
-
-        this.#mtIndex += 68;
-    }
-
-    #bloco6() {
-        this.#addTXT({
-            font: "bold",
-            aling: 'left', txt: "DADOS DOS PRODUTOS / SERVIÇOS",
-            l: 0, t: 1,
-            size: 8
-        });
-        let tabH = 0;
-        if (this.#pagQtd <= 1) { // Adicionar margem final
-            tabH = (10 + this.#pdfHeight - this.#mtIndex) - 75;
+            resolve(PDF.doc.save())
         } else {
-            tabH = (10 + this.#pdfHeight - this.#mtIndex);
+            // 🧱 Node.js
+            const { PassThrough } = await import('stream');
+            const stream = new PassThrough();
+            const chunks: Uint8Array[] = [];
+
+            await gerarBlocos();
+
+
+            PDF.doc.pipe(stream);
+            PDF.doc.end(); // Aqui fecha o PDF
+
+            stream.on('data', chunk => chunks.push(chunk));
+            stream.on('end', () => {
+                const buffer = Buffer.concat(chunks);
+                const base64 = buffer.toString('base64');
+                resolve(base64);
+            });
+            stream.on('error', reject);
         }
-        this.#addRetangulo({ l: 0, t: 9, w: this.#pdfWidth, h: tabH });
-
-        this.#addTXT({
-            aling: 'center', txt: "CÓD. PRODUTO",
-            l: 0, t: 12,
-            w: this.#pdfWidth * 0.10,
-        });
-
-        this.#addTXT({
-            aling: 'center', txt: "DESCRIÇÃO DO PRODUTO / SERVIÇO",
-            l: this.#pdfWidth * 0.10, t: 12,
-            w: this.#pdfWidth * 0.25,
-        });
-        this.#addLinhaVT({ l: this.#pdfWidth * 0.10, ts: 15, te: tabH + 15 });
-
-        this.#addTXT({
-            aling: 'center', txt: "NCM/SH",
-            l: this.#pdfWidth * 0.35, t: 12,
-            w: this.#pdfWidth * 0.05,
-        });
-        this.#addLinhaVT({ l: this.#pdfWidth * 0.35, ts: 15, te: tabH + 15 });
-
-        this.#addTXT({
-            aling: 'center', txt: "O/CSOSN",
-            l: this.#pdfWidth * 0.40, t: 12,
-            w: this.#pdfWidth * 0.05,
-        });
-        this.#addLinhaVT({ l: this.#pdfWidth * 0.40, ts: 15, te: tabH + 15 });
-
-        this.#addTXT({
-            aling: 'center', txt: "CFOP",
-            l: this.#pdfWidth * 0.45, t: 12,
-            w: this.#pdfWidth * 0.04,
-        });
-        this.#addLinhaVT({ l: this.#pdfWidth * 0.45, ts: 15, te: tabH + 15 });
-
-        this.#addTXT({
-            aling: 'center', txt: "UN",
-            l: this.#pdfWidth * 0.49, t: 12,
-            w: this.#pdfWidth * 0.03,
-        });
-        this.#addLinhaVT({ l: this.#pdfWidth * 0.49, ts: 15, te: tabH + 15 });
-
-
-        this.#addTXT({
-            aling: 'center', txt: "QUANT",
-            l: this.#pdfWidth * 0.52, t: 12,
-            w: this.#pdfWidth * 0.07,
-        });
-        this.#addLinhaVT({ l: this.#pdfWidth * 0.52, ts: 15, te: tabH + 15 });
-
-        this.#addTXT({
-            aling: 'center', txt: "QUANT",
-            l: this.#pdfWidth * 0.59, t: 12,
-            w: this.#pdfWidth * 0.06,
-        });
-        this.#addLinhaVT({ l: this.#pdfWidth * 0.59, ts: 15, te: tabH + 15 });
-
-        this.#addTXT({
-            aling: 'center', txt: "V. TOTAL",
-            l: this.#pdfWidth * 0.65, t: 12,
-            w: this.#pdfWidth * 0.06,
-        });
-        this.#addLinhaVT({ l: this.#pdfWidth * 0.65, ts: 15, te: tabH + 15 });
-
-        this.#addTXT({
-            aling: 'center', txt: "V. DESC.",
-            l: this.#pdfWidth * 0.71, t: 12,
-            w: this.#pdfWidth * 0.06,
-        });
-        this.#addLinhaVT({ l: this.#pdfWidth * 0.71, ts: 15, te: tabH + 15 });
-
-        this.#addTXT({
-            aling: 'center', txt: "B.CÁLC ICMS",
-            l: this.#pdfWidth * 0.77, t: 12,
-            w: this.#pdfWidth * 0.04,
-        });
-        this.#addLinhaVT({ l: this.#pdfWidth * 0.77, ts: 15, te: tabH + 15 });
-
-        this.#addTXT({
-            aling: 'center', txt: "V. ICMS",
-            l: this.#pdfWidth * 0.81, t: 12,
-            w: this.#pdfWidth * 0.06,
-        });
-        this.#addLinhaVT({ l: this.#pdfWidth * 0.81, ts: 15, te: tabH + 15 });
-
-        this.#addTXT({
-            aling: 'center', txt: "V. IPI",
-            l: this.#pdfWidth * 0.87, t: 12,
-            w: this.#pdfWidth * 0.04,
-        });
-        this.#addLinhaVT({ l: this.#pdfWidth * 0.87, ts: 15, te: tabH + 15 });
-
-        this.#addTXT({
-            aling: 'center', txt: "ALIQ. ICM",
-            l: this.#pdfWidth * 0.91, t: 12,
-            w: this.#pdfWidth * 0.04,
-        });
-        this.#addLinhaVT({ l: this.#pdfWidth * 0.91, ts: 15, te: tabH + 15 });
-
-        this.#addTXT({
-            aling: 'center', txt: "ALIQ. ICM",
-            l: this.#pdfWidth * 0.95, t: 12,
-            w: this.#pdfWidth * 0.04,
-        });
-        this.#addLinhaVT({ l: this.#pdfWidth * 0.95, ts: 15, te: tabH + 15 });
-        this.#addLinhaHT({ t: 32, ls: 0, le: this.#pdfWidth });
-
-
-        let produtos = Array.isArray(this.#xml.NFe.infNFe.det) ? this.#xml.NFe.infNFe.det : [{ prod: this.#xml.NFe.infNFe.det.prod }];
-        let nextProd = 30;
-        produtos.forEach((el: any) => {
-            const prod = el.prod;
-            const imposto = el.imposto || {};
-
-            const csosn = imposto.ICMS?.CSOSN || imposto.ICMS?.CST || '';
-            const baseICMS = imposto.ICMS?.vBC ?? '0.00';
-            const valorICMS = imposto.ICMS?.vICMS ?? '0.00';
-            const valorIPI = imposto.IPI?.IPITrib?.vIPI ?? '0.00';
-            const aliqICMS = imposto.ICMS?.pICMS ?? '0.00';
-            const aliqIPI = imposto.IPI?.IPITrib?.pIPI ?? '0.00';
-            const desconto = prod.vDesc ?? '0.00';
-
-            const nLinha = (prod.xProd.length <= 38 ? 1 : Math.ceil((prod.xProd.length - 38) / 18));
-
-            this.#addTXT({ aling: 'center', txt: prod.cEAN ?? '', l: 0, t: nextProd+((nLinha-1)*4), w: this.#pdfWidth * 0.10 });
-            this.#addTXT({ aling: 'left', txt: prod.xProd ?? '', l: this.#pdfWidth * 0.106, t: nextProd+((nLinha-1)*4), w: this.#pdfWidth * 0.25 });
-            this.#addTXT({ aling: 'center', txt: prod.NCM ?? '', l: this.#pdfWidth * 0.35, t: nextProd+((nLinha-1)*4), w: this.#pdfWidth * 0.05 });
-            this.#addTXT({ aling: 'center', txt: csosn, l: this.#pdfWidth * 0.40, t: nextProd+((nLinha-1)*4), w: this.#pdfWidth * 0.05 });
-            this.#addTXT({ aling: 'center', txt: prod.CFOP ?? '', l: this.#pdfWidth * 0.45, t: nextProd+((nLinha-1)*4), w: this.#pdfWidth * 0.04 });
-            this.#addTXT({ aling: 'center', txt: prod.uCom ?? '', l: this.#pdfWidth * 0.49, t: nextProd+((nLinha-1)*4), w: this.#pdfWidth * 0.03 });
-            this.#addTXT({ aling: 'center', txt: prod.qCom ?? '', l: this.#pdfWidth * 0.52, t: nextProd+((nLinha-1)*4), w: this.#pdfWidth * 0.07 });
-            this.#addTXT({ aling: 'center', txt: (parseFloat(prod.vUnCom) || 0).toFixed(2), l: this.#pdfWidth * 0.59, t: nextProd+((nLinha-1)*4), w: this.#pdfWidth * 0.06 });
-            this.#addTXT({ aling: 'center', txt: (parseFloat(prod.vProd) || 0).toFixed(2), l: this.#pdfWidth * 0.65, t: nextProd+((nLinha-1)*4), w: this.#pdfWidth * 0.06 });
-            this.#addTXT({ aling: 'center', txt: (parseFloat(desconto) || 0).toFixed(2), l: this.#pdfWidth * 0.71, t: nextProd+((nLinha-1)*4), w: this.#pdfWidth * 0.06 });
-            this.#addTXT({ aling: 'center', txt: (parseFloat(baseICMS) || 0).toFixed(2), l: this.#pdfWidth * 0.77, t: nextProd+((nLinha-1)*4), w: this.#pdfWidth * 0.04 });
-            this.#addTXT({ aling: 'center', txt: (parseFloat(valorICMS) || 0).toFixed(2), l: this.#pdfWidth * 0.81, t: nextProd+((nLinha-1)*4), w: this.#pdfWidth * 0.06 });
-            this.#addTXT({ aling: 'center', txt: (parseFloat(valorIPI) || 0).toFixed(2), l: this.#pdfWidth * 0.87, t: nextProd+((nLinha-1)*4), w: this.#pdfWidth * 0.04 });
-            this.#addTXT({ aling: 'center', txt: (parseFloat(aliqICMS) || 0).toFixed(2) + "%", l: this.#pdfWidth * 0.91, t: nextProd+((nLinha-1)*4), w: this.#pdfWidth * 0.04 });
-            this.#addTXT({ aling: 'center', txt: (parseFloat(aliqIPI) || 0).toFixed(2) + "%", l: this.#pdfWidth * 0.95, t: nextProd+((nLinha-1)*4), w: this.#pdfWidth * 0.04 });
-
-            nextProd += 8*nLinha;
-        });
-
-        this.#mtIndex += tabH + 12;
-        console.log(this.#mtIndex);
-        this.#bloco7();
-    }
-
-    //Limite maximo 787
-    #bloco7() {
-        this.#addTXT({
-            font: "bold",
-            aling: 'left', txt: "DADOS ADICIONAIS",
-            l: 0, t: 1,
-            size: 8
-        });
-
-        this.#addRetangulo({ l: 0, t: 9, w: this.#pdfWidth * 0.65, h: 28 });
-        this.#addTXT({
-            aling: 'left', txt: "PESO LÍQUIDO",
-            l: 2, t: 11
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: "",
-            l: 0, t: 9,
-            w: this.#pdfWidth * 0.2,
-            size: 9
-        });
-
-        this.#addRetangulo({ l: this.#pdfWidth * 0.65, t: 9, w: this.#pdfWidth * 0.36, h: 28 });
-        this.#addTXT({
-            aling: 'left', txt: "PESO LÍQUIDO",
-            l: this.#pdfWidth * 0.652, t: 11
-        });
-        this.#addTXT({
-            font: "bold",
-            aling: 'center', txt: "",
-            l: this.#pdfWidth * 0.65, t: 9,
-            w: this.#pdfWidth * 0.36,
-            size: 9
-        });
-
-        this.#addTXT({
-            aling: 'left', txt: "Impresso em 19/02/2025 as 08:58:52",
-            l: 0, t: 39
-        });
-        this.#addTXT({
-            aling: 'right', txt: "Gerado em www.fsist.com.br",
-            l: 0, t: 39,
-            w: this.#pdfWidth - (this.#pdfMargin * 2)
-        });
-    }
-
-
-
-
-    // ---------------- FUNCOES ----------------
-
-    #pdfWidth: number = 595.28;
-    #pdfHeight: number = 841.89;
-    #pdfMargin: number = 5;
-    #pdfOpc = {
-        borda: "black",
-        txt: "black",
-        lineWidth: 1,
-        ltraj: "#4b5563"
-    }
-
-    #mtIndex: number = 0; //Margem do topo para proximo bloco
-    #pagIndex: number = 1;
-    #pagQtd: number = 1;
-    #base64IMG(): Promise<any> {
-        return new Promise((resolve, reject) => {
-            if (this.#logo != null) {
-                if (this.#isBrowser) {
-                    if (this.#logo) {
-                        fetch(this.#logo).then(response => response.blob()).then(blob => this.#blob2base64(blob)).catch(reject);
-                    } else {
-                        reject(new Error("Logo não foi definido."));
-                    }
-                } else {
-                    reject(new Error("Método não suportado no ambiente Node.js"));
-                }
-            } else {
-                resolve(false)
-            }
-
-        });
-    }
-    #addBase64IMG(data = { l: 0, t: 0, w: 0, h: 0, base64: "" }, mtIndex = this.#mtIndex) {
-        this.#pdf.image(data.base64, (data.l <= this.#pdfMargin ? this.#pdfMargin + data.l : data.l),
-            (data.t <= this.#pdfMargin ? (data.t + this.#pdfMargin) : data.t + this.#pdfMargin) + mtIndex, { fit: [data.w, 50], align: 'center', valign: 'center' })
-    }
-    #blob2base64(blob: any): Promise<any> {
-        const reader = new FileReader();
-        reader.readAsDataURL(blob);
-        return new Promise(resolve => {
-            reader.onloadend = () => {
-                resolve(reader.result);
-            };
-        });
-    }
-    #addRetangulo(data = { l: 0, t: 0, w: 0, h: 0 }, mtIndex = this.#mtIndex) {
-        this.#pdf.lineWidth(this.#pdfOpc.lineWidth)
-            .moveTo(data.l <= this.#pdfMargin ? this.#pdfMargin : data.l, data.t + mtIndex + this.#pdfMargin)
-            .lineTo((data.l + data.w) >= this.#pdfWidth ? this.#pdfWidth - this.#pdfMargin : (data.l + data.w), data.t + mtIndex + this.#pdfMargin)
-            .lineTo((data.l + data.w) >= this.#pdfWidth ? this.#pdfWidth - this.#pdfMargin : (data.l + data.w), data.t + mtIndex + this.#pdfMargin + data.h)
-            .lineTo(data.l <= this.#pdfMargin ? this.#pdfMargin : data.l, data.t + mtIndex + this.#pdfMargin + data.h)
-            .lineTo(data.l <= this.#pdfMargin ? this.#pdfMargin : data.l, data.t + mtIndex + this.#pdfMargin - (this.#pdfOpc.lineWidth * .3))
-            .stroke();
-    }
-
-    //Linha trajada
-    #addLinhaHT(data = { t: 0, ls: 0, le: 0 }, mtIndex = this.#mtIndex) {
-        data.t = (data.t <= this.#pdfMargin ? this.#pdfMargin : data.t) + mtIndex
-        data.t = (data.t >= (this.#pdfHeight - this.#pdfMargin) ? (this.#pdfHeight - this.#pdfMargin) : data.t) //Bloqueo de estouro Final
-        if (data.ls > data.le) { //Corrigir ordem
-            let temp = data.ls;
-            data.ls = data.le;
-            data.le = temp;
-        }
-        data.ls = (data.ls <= this.#pdfMargin ? this.#pdfMargin : data.ls) //Bloqueo de estouro inicial
-        data.le = (data.le >= (this.#pdfWidth - this.#pdfMargin) ? (this.#pdfWidth - this.#pdfMargin) : data.le) //Bloqueo de estouro Final
-        this.#pdf.moveTo(data.ls, data.t).lineTo(data.le, data.t).dash(3, { space: 5 }).stroke(this.#pdfOpc.ltraj);
-        this.#pdf.undash();
-    }
-
-    //Linha Horizontal
-    #addLinhaH(data = { t: 0, ls: 0, le: 0 }, mtIndex = this.#mtIndex) {
-        data.t = (data.t <= this.#pdfMargin ? this.#pdfMargin : data.t) + mtIndex
-        data.t = (data.t >= (this.#pdfHeight - this.#pdfMargin) ? (this.#pdfHeight - this.#pdfMargin) : data.t) //Bloqueo de estouro Final
-        if (data.ls > data.le) { //Corrigir ordem
-            let temp = data.ls;
-            data.ls = data.le;
-            data.le = temp;
-        }
-        data.ls = (data.ls <= this.#pdfMargin ? this.#pdfMargin : data.ls) //Bloqueo de estouro inicial
-        data.le = (data.le >= (this.#pdfWidth - this.#pdfMargin) ? (this.#pdfWidth - this.#pdfMargin) : data.le) //Bloqueo de estouro Final
-        this.#pdf.moveTo(data.ls, data.t).lineTo(data.le, data.t).stroke(this.#pdfOpc.borda);
-    }
-
-    //Linha vertical
-    #addLinhaV(data = { l: 0, ts: 0, te: 0 }, mtIndex = this.#mtIndex) {
-        data.l = (data.l <= this.#pdfMargin ? this.#pdfMargin : data.l);
-        data.l = (data.l >= (this.#pdfWidth - this.#pdfMargin) ? (this.#pdfWidth - this.#pdfMargin) : data.l) //Bloqueo de estouro Final
-        if (data.ts > data.te) { //Corrigir ordem
-            let temp = data.ts;
-            data.ts = data.te;
-            data.te = temp;
-        }
-        data.ts = (data.ts <= this.#pdfMargin ? this.#pdfMargin : data.ts) + mtIndex //Bloqueo de estouro inicial
-        data.te = (data.te >= (this.#pdfWidth - this.#pdfMargin) ? (this.#pdfWidth - this.#pdfMargin) : data.te) + mtIndex //Bloqueo de estouro Final
-        this.#pdf.moveTo(data.l, data.ts).lineTo(data.l, data.te).stroke(this.#pdfOpc.borda);
-    }
-
-    #addLinhaVT(data = { l: 0, ts: 0, te: 0 }, mtIndex = this.#mtIndex) {
-        data.l = (data.l <= this.#pdfMargin ? this.#pdfMargin : data.l);
-        data.l = (data.l >= (this.#pdfWidth - this.#pdfMargin) ? (this.#pdfWidth - this.#pdfMargin) : data.l) //Bloqueo de estouro Final
-        if (data.ts > data.te) { //Corrigir ordem
-            let temp = data.ts;
-            data.ts = data.te;
-            data.te = temp;
-        }
-        data.ts = (data.ts <= this.#pdfMargin ? this.#pdfMargin : data.ts) + mtIndex //Bloqueo de estouro inicial
-        data.te = (data.te >= (this.#pdfWidth - this.#pdfMargin) ? (this.#pdfWidth - this.#pdfMargin) : data.te) + mtIndex //Bloqueo de estouro Final
-        this.#pdf.moveTo(data.l, data.ts).lineTo(data.l, data.te).dash(3, { space: 5 }).stroke(this.#pdfOpc.ltraj);
-    }
-
-    //Adicionar texto
-    #addTXT(data: {
-        l: number;
-        t: number;
-        txt: any;
-        txtCor?: string;
-        size?: number;
-        w?: number;
-        aling?: 'left' | 'center' | 'right' | 'justify';
-        font?: 'bold' | 'italic' | 'normal';
-    }, mtIndex = this.#mtIndex) {
-        let font = "";
-        switch (data.font) {
-            case "italic":
-                font = "Times-Italic";
-                break;
-            case "bold":
-                font = "Times-Bold";
-                break;
-            default:
-                font = "Times-Roman";
-                break;
-        }
-        this.#pdf.font(font)
-            .fillColor(this.#pdfOpc.txt)
-            .fontSize(data.size || 7)
-            .text(data.txt,
-                (data.l <= this.#pdfMargin ? this.#pdfMargin + data.l : data.l),
-                (data.t <= this.#pdfMargin ? (data.t + this.#pdfMargin) : data.t + this.#pdfMargin) + mtIndex,
-                {
-                    width: (data.w && data.w >= this.#pdfWidth ? data.w - data.l : data.w) ?? (this.#pdfWidth - data.l),
-                    align: data.aling || 'center'
-                }
-            );
-    }
+    });
 }
 
-export { danfe }
+export { DANFe }

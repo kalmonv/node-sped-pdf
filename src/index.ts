@@ -1,3 +1,3 @@
-import { danfe } from "./libs/danfe"
+import { DANFe } from "./libs/danfe"
 
-export { danfe }
+export { DANFe }

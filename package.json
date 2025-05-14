@@ -1,16 +1,32 @@
 {
   "name": "node-sped-pdf",
-  "version": "1.0.0",
+  "version": "1.0.4",
   "author": "Kalmon V. Tavares",
   "type": "module",
+  "keywords": [
+    "nota fiscal",
+    "xml",
+    "sefaz",
+    "nfe",
+    "sped",
+    "documento fiscal",
+    "danfe",
+    "nfce",
+    "pdf",
+    "danfe",
+    "danfce"
+  ],
   "scripts": {
-    "build": "vite build",
-    "dev": "vite ."
+    "build2": "vite build",
+    "dev": "vite .",
+    "build": "tsup"
   },
   "devDependencies": {
     "@types/blob-stream": "^0.1.33",
     "@types/node": "^22.14.1",
     "@types/pdfkit": "^0.13.9",
+    "@types/pdfmake": "^0.2.11",
+    "tsup": "^8.4.0",
     "typescript": "^5.0.0",
     "vite": "^5.0.0"
   },
@@ -18,7 +34,9 @@
     "@react-pdf/pdfkit": "^4.0.3",
     "blob-stream": "^0.1.3",
     "fast-xml-parser": "^5.2.0",
+    "pdf-lib": "^1.17.1",
     "pdfkit": "^0.17.0",
+    "pdfmake": "^0.2.19",
     "rollup-plugin-node-polyfills": "^0.2.1"
   }
 }
