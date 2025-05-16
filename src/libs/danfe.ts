@@ -4,6 +4,12 @@ import { XMLParser } from "fast-xml-parser"
 
 
 const DANFe = async (data: { xml?: string, xmlRes?: Record<string, any> | null, logo?: any | null, imgDemo?: string | null } = {}) => {
+    const parser = new XMLParser({
+        ignoreAttributes: false,
+        attributeNamePrefix: "@",
+        parseTagValue: false,       // Evita conversão automática de valores
+    });
+
     var PDF: {
         doc: any;
         pages: any;
@@ -17,15 +23,12 @@ const DANFe = async (data: { xml?: string, xmlRes?: Record<string, any> | null, 
         height: 0,
         mtBlock: 0,
     }, isBrowser = typeof window !== 'undefined',
-        xml = data.xml,
+        xml = parser.parse(data.xml || ""),
         xmlRes = data.xmlRes,
         logo = data.logo,
         imgDemo = data.imgDemo;
-    const parser = new XMLParser({
-        ignoreAttributes: false,
-        attributeNamePrefix: "@",
-        parseTagValue: false,       // Evita conversão automática de valores
-    });
+    console.log(xml)
+
 
     //Configuração do PDF
     PDF.pages.push(PDF.doc.addPage());
@@ -85,6 +88,7 @@ const DANFe = async (data: { xml?: string, xmlRes?: Record<string, any> | null, 
         size = 7,
         lineHeight,
         align = 'left',
+        cacl = false
     }: {
         page: any;
         text: string;
@@ -95,6 +99,7 @@ const DANFe = async (data: { xml?: string, xmlRes?: Record<string, any> | null, 
         size?: number;
         lineHeight?: number;
         align?: 'left' | 'center' | 'right';
+        cacl?: boolean;
     }): Promise<number> {
         let font: PDFFont;
 
@@ -116,6 +121,7 @@ const DANFe = async (data: { xml?: string, xmlRes?: Record<string, any> | null, 
         const effectiveLineHeight = lineHeight ?? size * .9;
 
         const lines = wrapText(text, maxWidth, font, size);
+        if (cacl) return lines.length;
 
         lines.forEach((line, index) => {
             const textWidth = font.widthOfTextAtSize(line, size);
@@ -173,18 +179,25 @@ const DANFe = async (data: { xml?: string, xmlRes?: Record<string, any> | null, 
         await bloco2()
         await bloco3()
         await bloco4()
+        await bloco5()
+        let fim = await bloco6()
+        await bloco7()
+        await bloco8()
         if (imgDemo != null) await blocoDEMO();
+
+        while (!fim) {
+            PDF.mtBlock = 0; //Resetar
+            PDF.pages.push(PDF.doc.addPage());
+            await bloco1()
+            fim = await bloco6();
+        }
+
+        for (const [i, page] of PDF.pages.entries()) {
+            addTXT({ page, size: 8, text: `Folha ${i + 1}/${PDF.pages.length}`, x: 235, y: (i == 0 ? 142 : 82), maxWidth: PDF.width * 0.19, align: "center", fontStyle: "italic" });
+        }
     }
 
-    function blob2base64(blob: any): Promise<any> {
-        const reader = new FileReader();
-        reader.readAsDataURL(blob);
-        return new Promise(resolve => {
-            reader.onloadend = () => {
-                resolve(reader.result);
-            };
-        });
-    }
+
 
     async function bloco0(page = PDF.pages[(PDF.pages.length - 1)]) {
         addRet(page, 0, PDF.mtBlock + 0, PDF.width, 50);
@@ -193,22 +206,23 @@ const DANFe = async (data: { xml?: string, xmlRes?: Record<string, any> | null, 
         addRet(page, 0, PDF.mtBlock + 25, PDF.width * 0.8, 25);
         addRet(page, PDF.width * 0.17, PDF.mtBlock + 25, PDF.width * 0.63, 25);
 
-        addTXT({ page, text: "RECEBEMOS DE 47.506.306 KALMON VALADAO TAVARES OS PRODUTOS E/OU SERVIÇOS CONSTANTES DA NOTA FISCAL ELETRÔNICA INDICADA ABAIXO. EMISSÃO: 25/04/2025 VALOR TOTAL: R$ 596,00 DESTINATÁRIO: NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL - AV PARA, 138 UNIAO NOVA XAVANTINA-MT", x: 2, y: PDF.mtBlock + 2, maxWidth: PDF.width * 0.78 });
+        addTXT({ page, text: `RECEBEMOS DE ${xml.NFe.infNFe.emit.xNome} OS PRODUTOS E/OU SERVIÇOS CONSTANTES DA NOTA FISCAL ELETRÔNICA INDICADA ABAIXO. EMISSÃO: ${new Date(xml.NFe.infNFe.ide.dhEmi).toLocaleDateString('pt-BR')} VALOR TOTAL: ${parseFloat(xml.NFe.infNFe.total.ICMSTot.vNF).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} DESTINATÁRIO: NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL - ${xml.NFe.infNFe.dest.enderDest.xLgr}, ${xml.NFe.infNFe.dest.enderDest.nro} ${xml.NFe.infNFe.dest.enderDest.xBairro} ${xml.NFe.infNFe.dest.enderDest.xMun}-${xml.NFe.infNFe.dest.enderDest.UF}`, x: 2, y: PDF.mtBlock + 2, maxWidth: PDF.width * 0.78 });
         addTXT({ page, text: "DATA DE RECEBIMENTO", x: 2, y: PDF.mtBlock + 25, maxWidth: PDF.width * 0.78 });
-        addTXT({ page, text: "DATA DE RECEBIMENTO", x: PDF.width * 0.173, y: PDF.mtBlock + 25, maxWidth: PDF.width });
-        addTXT({ page, size: 18, text: "NFe", x: PDF.width * 0.8, y: PDF.mtBlock, maxWidth: PDF.width * 0.8, align: "center" });
+        addTXT({ page, text: "ASSINATURA DO RECEBEDOR", x: PDF.width * 0.173, y: PDF.mtBlock + 25, maxWidth: PDF.width });
+        addTXT({ page, size: 18, text: "NFe", x: PDF.width * 0.8, y: PDF.mtBlock, maxWidth: PDF.width * 0.8, align: "center", fontStyle: "negrito" });
+        addTXT({ page, size: 11, text: `Nº. ${xml.NFe.infNFe.ide.nNF.padStart(9, '0')}`, x: PDF.width * 0.8, y: PDF.mtBlock + 20, maxWidth: PDF.width * 0.8, align: "center", fontStyle: "negrito" });
+        addTXT({ page, size: 11, text: `Série ${xml.NFe.infNFe.ide.serie.padStart(3, '0')}`, x: PDF.width * 0.8, y: PDF.mtBlock + 30, maxWidth: PDF.width * 0.8, align: "center", fontStyle: "negrito" });
 
-        addTXT({ page, size: 11, text: "Nº. 000.000.384", x: PDF.width * 0.8, y: PDF.mtBlock + 20, maxWidth: PDF.width * 0.8, align: "center" });
-        addTXT({ page, size: 11, text: "Série 000", x: PDF.width * 0.8, y: PDF.mtBlock + 30, maxWidth: PDF.width * 0.8, align: "center" });
         addLTH(page, 0, PDF.mtBlock + 56, PDF.width);
         PDF.mtBlock += 60;
     }
+
 
     async function bloco1(page = PDF.pages[(PDF.pages.length - 1)]) {
         addRet(page, 0, PDF.mtBlock, PDF.width, 132);
         addRet(page, 0, PDF.mtBlock, PDF.width, 92);
         addRet(page, 0, PDF.mtBlock, PDF.width, 112);
-        //addRet(page, PDF.width * 0.401, PDF.mtBlock + 0, PDF.width, 112);
+        addRet(page, PDF.width * 0.401, PDF.mtBlock + 0, PDF.width, 92);
         addRet(page, PDF.width * 0.53, PDF.mtBlock + 38, 16, 20);
         addRet(page, PDF.width * 0.57, PDF.mtBlock + 0, PDF.width, 47);
         addRet(page, PDF.width * 0.57, PDF.mtBlock + 47, PDF.width, 23);
@@ -220,45 +234,53 @@ const DANFe = async (data: { xml?: string, xmlRes?: Record<string, any> | null, 
 
         addTXT({ page, text: "IDENTIFICAÇÃO DO EMITENTE", x: 0, y: PDF.mtBlock + 2, maxWidth: PDF.width * 0.4, align: "center" });
 
-        //!FALTA ADICIONAR LOGO
-        addTXT({ page, size: 12, text: "47.506.306 KALMON VALADAO TAVARES", x: 0, y: PDF.mtBlock + 45, maxWidth: PDF.width * 0.4, align: "center" });
-        addTXT({ page, size: 9, text: "AV PARA, N°138", x: 0, y: PDF.mtBlock + 58, maxWidth: PDF.width * 0.42, align: "center" });
-        addTXT({ page, size: 9, text: "UNIÃO - 78690-000", x: 0, y: PDF.mtBlock + 66, maxWidth: PDF.width * 0.42, align: "center" });
-        addTXT({ page, size: 9, text: "Nova Xavantina - MT Fone/Fax: 66981352912", x: 0, y: PDF.mtBlock + 74, maxWidth: PDF.width * 0.42, align: "center" });
+        let mt = 0;
+        if (typeof logo !== "undefined") {
+            await addIMG({ page, img: logo, x: PDF.width * 0.18, y: PDF.mtBlock + 14, h: 37, w: 37 });
+            mt += 12;
+        }
 
+        addTXT({ page, size: 12, text: `${xml.NFe.infNFe.emit.xNome}`, x: 1, y: PDF.mtBlock + 35 + mt, maxWidth: PDF.width * 0.4, align: "center", fontStyle: "negrito" });
+        addTXT({ page, size: 9, text: `${xml.NFe.infNFe.emit.enderEmit.xLgr}, N°${xml.NFe.infNFe.emit.enderEmit.nro}`, x: 0, y: PDF.mtBlock + 45 + mt, maxWidth: PDF.width * 0.42, align: "center" });
+        addTXT({ page, size: 9, text: `${xml.NFe.infNFe.emit.enderEmit.xBairro} - ${xml.NFe.infNFe.emit.enderEmit.CEP}`, x: 0, y: PDF.mtBlock + 55 + mt, maxWidth: PDF.width * 0.42, align: "center" });
+        addTXT({ page, size: 9, text: `${xml.NFe.infNFe.emit.enderEmit.xMun} - ${xml.NFe.infNFe.emit.enderEmit.UF} Fone: ${xml.NFe.infNFe.emit.enderEmit.fone}`, x: 0, y: PDF.mtBlock + 65 + mt, maxWidth: PDF.width * 0.42, align: "center" });
 
-        addTXT({ page, size: 16, text: "DANFE", x: PDF.width * 0.393, y: PDF.mtBlock + 3, maxWidth: PDF.width * 0.2, align: "center" });
+        addTXT({ page, size: 16, text: "DANFE", x: PDF.width * 0.393, y: PDF.mtBlock + 3, maxWidth: PDF.width * 0.2, align: "center", fontStyle: "negrito" });
         addTXT({ page, size: 8, text: "Documento Auxiliar da Nota Fiscal Eletrônica", x: PDF.width * 0.4, y: PDF.mtBlock + 19, maxWidth: PDF.width * 0.18, align: "center" });
         addTXT({ page, size: 8, text: "0 - ENTRADA", x: PDF.width * 0.415, y: PDF.mtBlock + 42, maxWidth: PDF.width * 0.19, align: "left" });
         addTXT({ page, size: 8, text: "1 - SAÍDA", x: PDF.width * 0.415, y: PDF.mtBlock + 50, maxWidth: PDF.width * 0.19, align: "left" });
-        addTXT({ page, size: 20, text: "1", x: PDF.width * 0.534, y: PDF.mtBlock + 37, maxWidth: PDF.width * 0.19, align: "left" });
-        addTXT({ page, size: 10, text: "Nº. 000.000.264", x: PDF.width * 0.4, y: PDF.mtBlock + 63, maxWidth: PDF.width * 0.19, align: "center" });
-        addTXT({ page, size: 10, text: "Série 000", x: PDF.width * 0.398, y: PDF.mtBlock + 72, maxWidth: PDF.width * 0.19, align: "center" });
-        addTXT({ page, size: 8, text: "Série 000", x: PDF.width * 0.398, y: PDF.mtBlock + 82, maxWidth: PDF.width * 0.19, align: "center" });
+        addTXT({ page, size: 20, text: xml.NFe.infNFe.ide.tpNF, x: PDF.width * 0.534, y: PDF.mtBlock + 37, maxWidth: PDF.width * 0.19, align: "left" });
+        addTXT({ page, size: 10, text: `Nº. ${xml.NFe.infNFe.ide.nNF.padStart(9, '0')}`, x: PDF.width * 0.4, y: PDF.mtBlock + 63, maxWidth: PDF.width * 0.19, align: "center", fontStyle: "negrito" });
+        addTXT({ page, size: 10, text: `Série ${xml.NFe.infNFe.ide.serie.padStart(3, '0')}`, x: PDF.width * 0.398, y: PDF.mtBlock + 72, maxWidth: PDF.width * 0.19, align: "center", fontStyle: "negrito" });
 
 
         addTXT({ page, text: "CHAVE DE ACESSO", x: PDF.width * 0.575, y: PDF.mtBlock + 47, maxWidth: PDF.width * 0.19 });
-        addTXT({ page, size: 8, text: "5125 0547 5063 0600 0188 5500 0000 0002 6410 0002 0233", x: PDF.width * 0.595, y: PDF.mtBlock + 58, maxWidth: PDF.width * 0.39, align: "center" });
+        addTXT({ page, size: 8, text: xml.NFe.infNFe["@Id"].replace("NFe", "").replace(/(\d{4})(?=\d)/g, "$1 "), x: PDF.width * 0.595, y: PDF.mtBlock + 58, maxWidth: PDF.width * 0.39, align: "center", fontStyle: "negrito" });
         addTXT({ page, size: 8, text: "Consulta de autenticidade no portal nacional da NF-e", x: PDF.width * 0.595, y: PDF.mtBlock + 70, maxWidth: PDF.width * 0.39, align: "center" });
         addTXT({ page, size: 8, text: " www.nfe.fazenda.gov.br/portal ou no site da Sefaz Autorizadora", x: PDF.width * 0.595, y: PDF.mtBlock + 81, maxWidth: PDF.width * 0.39, align: "center" });
+
         addTXT({ page, text: "PROTOCOLO DE AUTORIZAÇÃO DE USO", x: PDF.width * 0.575, y: PDF.mtBlock + 92, maxWidth: PDF.width * 0.29 });
-        addTXT({ page, size: 10, text: "151250037548938  -  05/05/2025 15:17:16", x: PDF.width * 0.595, y: PDF.mtBlock + 101, maxWidth: PDF.width * 0.39, align: "center" });
+        addTXT({ page, size: 10, text: `${xml.NFe?.protNFe?.infProt?.nProt || ""} - ${xml.NFe?.protNFe?.infProt?.dhRecbto ? new Date(xml.NFe.protNFe.infProt.dhRecbto).toLocaleString('pt-BR') : ""}`, x: PDF.width * 0.595, y: PDF.mtBlock + 101, maxWidth: PDF.width * 0.39, align: "center", fontStyle: "negrito" });
+
         addTXT({ page, text: "NATUREZA DA OPERAÇÃO", x: 3, y: PDF.mtBlock + 92, maxWidth: PDF.width * 0.29 });
-        addTXT({ page, size: 10, text: "VENDA", x: 3, y: PDF.mtBlock + 101, maxWidth: PDF.width * 0.58, align: "center" });
+        addTXT({ page, size: 10, text: xml.NFe.infNFe.ide.natOp, x: 3, y: PDF.mtBlock + 101, maxWidth: PDF.width * 0.58, align: "center", fontStyle: "negrito" });
 
         addTXT({ page, text: "INSCRIÇÃO ESTADUAL", x: 3, y: PDF.mtBlock + 112, maxWidth: PDF.width * 0.29 });
-        addTXT({ page, size: 10, text: " 139551956", x: 3, y: PDF.mtBlock + 121, maxWidth: PDF.width * 0.25, align: "center" });
+        addTXT({ page, size: 10, text: xml.NFe.infNFe.emit.IE || "", x: 3, y: PDF.mtBlock + 121, maxWidth: PDF.width * 0.25, align: "center", fontStyle: "negrito" });
 
-        addTXT({ page, text: " INSCRIÇÃO MUNICIPAL", x: PDF.width * 0.255, y: PDF.mtBlock + 112, maxWidth: PDF.width * 0.29 });
-        addTXT({ page, size: 10, text: "xxxxxx", x: PDF.width * 0.355, y: PDF.mtBlock + 121, maxWidth: PDF.width * 0.05, align: "center" });
+        addTXT({ page, text: "INSCRIÇÃO MUNICIPAL", x: PDF.width * 0.255, y: PDF.mtBlock + 112, maxWidth: PDF.width * 0.29 });
+        addTXT({ page, size: 10, text: xml.NFe.infNFe.emit.IM || "", x: PDF.width * 0.355, y: PDF.mtBlock + 121, maxWidth: PDF.width * 0.05, align: "center", fontStyle: "negrito" });
 
         addTXT({ page, text: "INSCRIÇÃO ESTADUAL DO SUBST. TRIBUT.", x: PDF.width * 0.5, y: PDF.mtBlock + 112, maxWidth: PDF.width * 0.29 });
-        addTXT({ page, size: 10, text: "xxxxx", x: PDF.width * 0.6, y: PDF.mtBlock + 121, maxWidth: PDF.width * 0.05, align: "center" });
+        addTXT({ page, size: 10, text: xml.NFe.infNFe.emit.IEST || "", x: PDF.width * 0.6, y: PDF.mtBlock + 121, maxWidth: PDF.width * 0.05, align: "center", fontStyle: "negrito" });
 
         addTXT({ page, text: "CNPJ/CPF", x: PDF.width * 0.75, y: PDF.mtBlock + 112, maxWidth: PDF.width * 0.29 });
-        addTXT({ page, size: 10, text: "47.506.306/0001-88666", x: PDF.width * 0.845, y: PDF.mtBlock + 121, maxWidth: PDF.width * 0.05, align: "center" });
+        addTXT({ page, size: 10, text: xml.NFe.infNFe.emit.CNPJ, x: PDF.width * 0.845, y: PDF.mtBlock + 121, maxWidth: PDF.width * 0.05, align: "center", fontStyle: "negrito" });
+
         PDF.mtBlock += 133;
     }
+
+
 
     async function bloco2(page = PDF.pages[(PDF.pages.length - 1)]) {
         addRet(page, 0, PDF.mtBlock + 10, PDF.width * 0.603, 20);
@@ -271,68 +293,83 @@ const DANFe = async (data: { xml?: string, xmlRes?: Record<string, any> | null, 
         addRet(page, PDF.width * 0.465, PDF.mtBlock + 50, PDF.width * 0.038, 20);
         addRet(page, PDF.width * 0, PDF.mtBlock + 50, PDF.width * 0.465, 20);
         addRet(page, PDF.width * 0, PDF.mtBlock + 30, PDF.width * 0.465, 20);
-        //addRet(page, 0, PDF.mtBlock + 30, PDF.width, 20);
-        addTXT({ page, text: "DESTINATÁRIO / REMETENTE", x: 3, y: PDF.mtBlock + 2, maxWidth: PDF.width * 0.4 });
 
+        addTXT({ page, text: "DESTINATÁRIO / REMETENTE", x: 3, y: PDF.mtBlock + 2, maxWidth: PDF.width * 0.4, fontStyle: "negrito" });
 
         addTXT({ page, text: "NOME / RAZÃO SOCIAL", x: 3, y: PDF.mtBlock + 10, maxWidth: PDF.width * 0.4 });
-        addTXT({ page, size: 9, text: "NOVA XAVANTINA CAMARA MUNICIPAL", x: 3, y: PDF.mtBlock + 20, maxWidth: PDF.width * 0.42 });
+        addTXT({ page, size: 9, text: xml.NFe.infNFe.dest.xNome, x: 3, y: PDF.mtBlock + 20, maxWidth: PDF.width * 0.42, fontStyle: "negrito" });
 
         addTXT({ page, text: "CNPJ/CPF", x: PDF.width * 0.61, y: PDF.mtBlock + 10, maxWidth: PDF.width * 0.4 });
-        addTXT({ page, size: 9, text: "15.372.402/0001-94", x: PDF.width * 0.51, y: PDF.mtBlock + 20, maxWidth: PDF.width * 0.42, align: "center" });
-
+        addTXT({ page, size: 9, text: xml.NFe.infNFe.dest.CNPJ || xml.NFe.infNFe.dest.CPF, x: PDF.width * 0.51, y: PDF.mtBlock + 20, maxWidth: PDF.width * 0.42, align: "center", fontStyle: "negrito" });
 
         addTXT({ page, text: "DATA DA EMISSÃO", x: PDF.width * 0.83, y: PDF.mtBlock + 10, maxWidth: PDF.width * 0.4 });
-        addTXT({ page, size: 9, text: "23/05/2025", x: PDF.width * 0.83, y: PDF.mtBlock + 20, maxWidth: PDF.width * 0.42, align: "center" });
+        addTXT({ page, size: 9, text: new Date(xml.NFe.infNFe.ide.dhEmi).toLocaleDateString('pt-BR'), x: PDF.width * 0.83, y: PDF.mtBlock + 20, maxWidth: PDF.width * 0.42, align: "center", fontStyle: "negrito" });
 
-        addTXT({ page, text: "DATA DA EMISSÃO", x: 2, y: PDF.mtBlock + 31, maxWidth: PDF.width * 0.4 });
-        addTXT({ page, size: 9, text: "AV PARA, N° 138", x: 3, y: PDF.mtBlock + 40, maxWidth: PDF.width * 0.42, align: "left" });
+        addTXT({ page, text: "ENDEREÇO", x: 2, y: PDF.mtBlock + 31, maxWidth: PDF.width * 0.4 });
+        addTXT({ page, size: 9, text: `${xml.NFe.infNFe.dest.enderDest.xLgr}, N° ${xml.NFe.infNFe.dest.enderDest.nro}`, x: 3, y: PDF.mtBlock + 40, maxWidth: PDF.width * 0.42, align: "left", fontStyle: "negrito" });
 
-        addTXT({ page, text: "BAIRRO", x: PDF.width * 0.47, y: PDF.mtBlock + 31, maxWidth: PDF.width * 0.4 });
-        addTXT({ page, size: 9, text: "UNIÃO", x: PDF.width * 0.47, y: PDF.mtBlock + 40, maxWidth: PDF.width * 0.21, align: "center" });
+        addTXT({ page, text: "BAIRRO/DISTRITO", x: PDF.width * 0.47, y: PDF.mtBlock + 31, maxWidth: PDF.width * 0.4 });
+        addTXT({ page, size: 9, text: xml.NFe.infNFe.dest.enderDest.xBairro, x: PDF.width * 0.47, y: PDF.mtBlock + 40, maxWidth: PDF.width * 0.21, align: "center", fontStyle: "negrito" });
 
         addTXT({ page, text: "CEP", x: PDF.width * 0.67, y: PDF.mtBlock + 31, maxWidth: PDF.width * 0.4 });
-        addTXT({ page, size: 9, text: "78690-000", x: PDF.width * 0.67, y: PDF.mtBlock + 40, maxWidth: PDF.width * 0.17, align: "center" });
+        addTXT({ page, size: 9, text: xml.NFe.infNFe.dest.enderDest.CEP.replace(/^(\d{5})(\d{3})$/, "$1-$2"), x: PDF.width * 0.67, y: PDF.mtBlock + 40, maxWidth: PDF.width * 0.17, align: "center", fontStyle: "negrito" });
 
         addTXT({ page, text: "DATA DA SAÍDA/ENTRDA", x: PDF.width * 0.83, y: PDF.mtBlock + 31, maxWidth: PDF.width * 0.4 });
-        addTXT({ page, size: 9, text: "78690-000", x: PDF.width * 0.83, y: PDF.mtBlock + 40, maxWidth: PDF.width * 0.17, align: "center" });
+        addTXT({ page, size: 9, text: new Date(xml.NFe.infNFe.ide.dhEmi).toLocaleDateString('pt-BR'), x: PDF.width * 0.83, y: PDF.mtBlock + 40, maxWidth: PDF.width * 0.17, align: "center", fontStyle: "negrito" });
 
         addTXT({ page, text: "MUNICIPIO", x: 2, y: PDF.mtBlock + 50, maxWidth: PDF.width * 0.4 });
-        addTXT({ page, size: 9, text: "NOVA XAVANTINA", x: 3, y: PDF.mtBlock + 60, maxWidth: PDF.width * 0.42, align: "left" });
+        addTXT({ page, size: 9, text: xml.NFe.infNFe.dest.enderDest.xMun, x: 3, y: PDF.mtBlock + 60, maxWidth: PDF.width * 0.42, align: "left", fontStyle: "negrito" });
 
         addTXT({ page, text: "UF", x: PDF.width * 0.47, y: PDF.mtBlock + 50, maxWidth: PDF.width * 0.4 });
-        addTXT({ page, size: 9, text: "MT", x: PDF.width * 0.473, y: PDF.mtBlock + 60, maxWidth: PDF.width * 0.21, align: "left" });
+        addTXT({ page, size: 9, text: xml.NFe.infNFe.dest.enderDest.UF, x: PDF.width * 0.473, y: PDF.mtBlock + 60, maxWidth: PDF.width * 0.21, align: "left", fontStyle: "negrito" });
 
-
-        addTXT({ page, text: "BAIRRO", x: PDF.width * 0.505, y: PDF.mtBlock + 50, maxWidth: PDF.width * 0.4 });
-        addTXT({ page, size: 9, text: "UNIÃO", x: PDF.width * 0.505, y: PDF.mtBlock + 60, maxWidth: PDF.width * 0.17, align: "center" });
-
+        addTXT({ page, text: "FONE/FAX", x: PDF.width * 0.505, y: PDF.mtBlock + 50, maxWidth: PDF.width * 0.4 });
+        addTXT({ page, size: 9, text: xml.NFe.infNFe.dest.enderDest.fone || "", x: PDF.width * 0.505, y: PDF.mtBlock + 60, maxWidth: PDF.width * 0.17, align: "center", fontStyle: "negrito" });
 
         addTXT({ page, text: "INSCRIÇÃO ESTADUAL", x: PDF.width * 0.67, y: PDF.mtBlock + 50, maxWidth: PDF.width * 0.4 });
-        addTXT({ page, size: 9, text: "UNIÃO", x: PDF.width * 0.67, y: PDF.mtBlock + 60, maxWidth: PDF.width * 0.17, align: "center" });
+        addTXT({ page, size: 9, text: xml.NFe.infNFe.dest.IE || "", x: PDF.width * 0.67, y: PDF.mtBlock + 60, maxWidth: PDF.width * 0.17, align: "center", fontStyle: "negrito" });
 
-        addTXT({ page, text: "DATA DA SAÍDA/ENTRDA", x: PDF.width * 0.83, y: PDF.mtBlock + 50, maxWidth: PDF.width * 0.4 });
-        addTXT({ page, size: 9, text: "78690-000", x: PDF.width * 0.83, y: PDF.mtBlock + 60, maxWidth: PDF.width * 0.17, align: "center" });
+        addTXT({ page, text: "HORA DA SAÍDA/ENTRDA", x: PDF.width * 0.83, y: PDF.mtBlock + 50, maxWidth: PDF.width * 0.4 });
+        addTXT({ page, size: 9, text: new Date(xml.NFe.infNFe.ide.dhEmi).toLocaleTimeString('pt-BR'), x: PDF.width * 0.83, y: PDF.mtBlock + 60, maxWidth: PDF.width * 0.17, align: "center", fontStyle: "negrito" });
+
         PDF.mtBlock += 73;
     }
 
     async function bloco3(page = PDF.pages[(PDF.pages.length - 1)]) {
-        addTXT({ page, text: "PAGAMENTO", x: 3, y: PDF.mtBlock, maxWidth: PDF.width * 0.25 });
-        addRet(page, 0, PDF.mtBlock + 7, PDF.width * 0.25, 20);
-        addTXT({ page, text: "FORMA", x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.25 });
-        addTXT({ page, text: "DINHEIRO", x: 3, y: PDF.mtBlock + 18, maxWidth: PDF.width * 0.25 });
+        addTXT({ page, text: "PAGAMENTO", x: 3, y: PDF.mtBlock, maxWidth: PDF.width * 0.25, fontStyle: "negrito" });
 
-        addTXT({ page, text: "Dinheiro", x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.245, align: "right" });
-        addTXT({ page, text: "R$ 600,00", x: 3, y: PDF.mtBlock + 18, maxWidth: PDF.width * 0.245, align: "right" });
-        PDF.mtBlock += 28;
+        const pagamentos = Array.isArray(xml.NFe.infNFe.pag.detPag) ? xml.NFe.infNFe.pag.detPag : [xml.NFe.infNFe.pag.detPag];
+        const formaPagto: any = {
+            "01": "Dinheiro", "02": "Cheque", "03": "Cartão de Crédito", "04": "Cartão de Débito", "05": "Crédito Loja",
+            "10": "Vale Alimentação", "11": "Vale Refeição", "12": "Vale Presente", "13": "Vale Combustível",
+            "15": "Boleto Bancário", "16": "Depósito Bancário", "17": "PIX", "18": "Transferência", "19": "Fidelidade",
+            "90": "Sem pagamento", "99": "Outros"
+        };
+
+        let offset = 0;
+
+        for (const pag of pagamentos) {
+            const forma = formaPagto[pag.tPag] || `Código ${pag.tPag}`;
+            const valor = parseFloat(pag.vPag).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+            addRet(page, 0, PDF.mtBlock + 7 + offset, PDF.width * 0.25, 20);
+            addTXT({ page, text: "FORMA", x: 3, y: PDF.mtBlock + 8 + offset, maxWidth: PDF.width * 0.25 });
+            addTXT({ page, text: forma, x: 3, y: PDF.mtBlock + 18 + offset, maxWidth: PDF.width * 0.25 });
+            addTXT({ page, text: forma, x: 3, y: PDF.mtBlock + 8 + offset, maxWidth: PDF.width * 0.245, align: "right", fontStyle: "negrito" });
+            addTXT({ page, text: valor, x: 3, y: PDF.mtBlock + 18 + offset, maxWidth: PDF.width * 0.245, align: "right", fontStyle: "negrito" });
+
+            offset += 22;
+        }
+
+        PDF.mtBlock += offset + 6;
     }
+
 
     async function bloco4(page = PDF.pages[(PDF.pages.length - 1)]) {
         const ICMS: any = {
             vBC: "Base Calc. ICMS",
             vICMS: "Valor ICMS",
             vICMSDeson: "ICMS Desonerado",
-            vFCP: "Valor FCP",
             vBCST: "Base Calc. ICMS ST",
             vST: "ICMS Subst. Trib.",
             vFCPST: "Valor FCP ST",
@@ -349,20 +386,259 @@ const DANFe = async (data: { xml?: string, xmlRes?: Record<string, any> | null, 
             vOutro: "Outras Desp. Acess.",
             vNF: "Valor Total NF-e"
         };
-        addTXT({ page, text: "PAGAMENTO", x: 3, y: PDF.mtBlock, maxWidth: PDF.width * 0.25 });
-        let nextY = PDF.mtBlock + 8,
-            nextX = 0,
-            limitY = (PDF.width-8);
+
+        addTXT({ page, text: "TOTAIS", x: 3, y: PDF.mtBlock, maxWidth: PDF.width * 0.25, fontStyle: "negrito" });
+
+        let nextY = PDF.mtBlock + 8, nextX = 0, limitY = (PDF.width - 8);
+
         for (const key of Object.keys(ICMS)) {
+            const valor = xml.NFe.infNFe.total.ICMSTot[key];
+            const texto = valor ? parseFloat(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : "0,00";
+
             await addRet(page, (limitY * 0.111) * nextX, nextY, limitY * 0.111, 20);
             addTXT({ page, text: ICMS[key], x: 2 + (limitY * 0.111) * nextX, y: nextY + 1, maxWidth: limitY * 0.111 });
-            addTXT({ page, size: 10, text: "0,00", x: (limitY * 0.111) * nextX, y: nextY+9, maxWidth: limitY * 0.111, align: "right" });
+            addTXT({ page, size: 10, text: texto.replace("R$", ""), x: (limitY * 0.111) * nextX, y: nextY + 9, maxWidth: limitY * 0.111, align: "right", fontStyle: "negrito" });
+
             nextX++;
             if (nextX >= 9) {
                 nextX = 0;
                 nextY += 20;
             }
         }
+
+        PDF.mtBlock += nextY - PDF.mtBlock + 3;
+    }
+
+
+    async function bloco5(page = PDF.pages[(PDF.pages.length - 1)]) {
+        const transp = xml.NFe.infNFe.transp || {};
+        const vol = Array.isArray(transp.vol) ? transp.vol[0] : (transp.vol || {});
+
+        const modFreteMap = {
+            "0": "0-Emitente",
+            "1": "1-Destinatário",
+            "2": "2-Terceiros",
+            "3": "3-Próprio por conta do remetente",
+            "4": "4-Próprio por conta do destinatário",
+            "9": "9-Sem Transporte"
+        };
+
+        addTXT({ page, text: "TRANSPORTADOR / VOLUMES TRANSPORTADOS", x: 3, y: PDF.mtBlock, maxWidth: PDF.width, fontStyle: "negrito" });
+
+        // Linhas de retângulo (não alteradas)
+        addRet(page, 0, PDF.mtBlock + 8, PDF.width * 0.29, 20);
+        addRet(page, PDF.width * 0.29, PDF.mtBlock + 8, PDF.width * 0.15, 20);
+        addRet(page, PDF.width * 0.44, PDF.mtBlock + 8, PDF.width * 0.14, 20);
+        addRet(page, PDF.width * 0.58, PDF.mtBlock + 8, PDF.width * 0.15, 20);
+        addRet(page, PDF.width * 0.73, PDF.mtBlock + 8, PDF.width * 0.04, 20);
+        addRet(page, PDF.width * 0.77, PDF.mtBlock + 8, PDF.width, 20);
+        addRet(page, PDF.width * 0.77, PDF.mtBlock + 28, PDF.width, 20);
+        addRet(page, PDF.width * 0.8, PDF.mtBlock + 48, PDF.width, 20);
+        addRet(page, PDF.width * 0.6, PDF.mtBlock + 48, PDF.width, 20);
+        addRet(page, PDF.width * 0.44, PDF.mtBlock + 48, PDF.width, 20);
+        addRet(page, PDF.width * 0.27, PDF.mtBlock + 48, PDF.width, 20);
+        addRet(page, PDF.width * 0.1, PDF.mtBlock + 48, PDF.width, 20);
+        addRet(page, 0, PDF.mtBlock + 48, PDF.width, 20);
+        addRet(page, 0, PDF.mtBlock + 28, PDF.width * 0.44, 20);
+        addRet(page, 0, PDF.mtBlock + 28, PDF.width * 0.73, 20);
+
+        // Linha 1
+        addTXT({ page, text: "NOME / RAZÃO SOCIAL", x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.29 });
+        addTXT({ page, text: transp.transporta?.xNome || "", x: 3, y: PDF.mtBlock + 18, maxWidth: PDF.width * 0.29, fontStyle: "negrito" });
+
+        addTXT({ page, text: "FRETE", x: PDF.width * 0.293, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.15 });
+        addTXT({ page, text: modFreteMap[transp.modFrete] || `Código ${transp.modFrete || ""}`, x: PDF.width * 0.293, y: PDF.mtBlock + 18, maxWidth: PDF.width * 0.15, fontStyle: "negrito" });
+
+        addTXT({ page, text: "CÓDIGO ANTT", x: PDF.width * 0.443, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.15 });
+        addTXT({ page, text: transp.veicTransp?.RNTC || "", x: PDF.width * 0.443, y: PDF.mtBlock + 18, maxWidth: PDF.width * 0.15, fontStyle: "negrito" });
+
+        addTXT({ page, text: "PLACA DO VEÍCULO", x: PDF.width * 0.583, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.15 });
+        addTXT({ page, text: transp.veicTransp?.placa || "", x: PDF.width * 0.583, y: PDF.mtBlock + 18, maxWidth: PDF.width * 0.15, fontStyle: "negrito" });
+
+        addTXT({ page, text: "UF", x: PDF.width * 0.733, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.15 });
+        addTXT({ page, text: transp.veicTransp?.UF || "", x: PDF.width * 0.733, y: PDF.mtBlock + 18, maxWidth: PDF.width * 0.15, fontStyle: "negrito" });
+
+        addTXT({ page, text: "CNPJ/CPF", x: PDF.width * 0.773, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.15 });
+        addTXT({ page, text: transp.transporta?.CNPJ || transp.transporta?.CPF || "", x: PDF.width * 0.773, y: PDF.mtBlock + 18, maxWidth: PDF.width * 0.15, fontStyle: "negrito" });
+
+        // Linha 2
+        addTXT({ page, text: "ENDEREÇO", x: 3, y: PDF.mtBlock + 29, maxWidth: PDF.width * 0.29 });
+        addTXT({ page, text: transp.transporta?.xEnder || "", x: 3, y: PDF.mtBlock + 39, maxWidth: PDF.width * 0.29, fontStyle: "negrito" });
+
+        addTXT({ page, text: "MUNICÍPIO", x: PDF.width * 0.443, y: PDF.mtBlock + 29, maxWidth: PDF.width * 0.29 });
+        addTXT({ page, text: transp.transporta?.xMun || "", x: PDF.width * 0.443, y: PDF.mtBlock + 39, maxWidth: PDF.width * 0.29, fontStyle: "negrito" });
+
+        addTXT({ page, text: "UF", x: PDF.width * 0.733, y: PDF.mtBlock + 29, maxWidth: PDF.width * 0.29 });
+        addTXT({ page, text: transp.transporta?.UF || "", x: PDF.width * 0.733, y: PDF.mtBlock + 39, maxWidth: PDF.width * 0.29, fontStyle: "negrito" });
+
+        addTXT({ page, text: "INSCRIÇÃO ESTADUAL", x: PDF.width * 0.773, y: PDF.mtBlock + 29, maxWidth: PDF.width * 0.29 });
+        addTXT({ page, text: transp.transporta?.IE || "", x: PDF.width * 0.773, y: PDF.mtBlock + 39, maxWidth: PDF.width * 0.29, fontStyle: "negrito" });
+
+        // Linha 3
+        addTXT({ page, text: "QUANTIDADE", x: 3, y: PDF.mtBlock + 49, maxWidth: PDF.width * 0.29 });
+        addTXT({ page, text: vol.qVol || "", x: 3, y: PDF.mtBlock + 59, maxWidth: PDF.width * 0.29, fontStyle: "negrito" });
+
+        addTXT({ page, text: "ESPÉCIE", x: PDF.width * 0.102, y: PDF.mtBlock + 49, maxWidth: PDF.width * 0.29 });
+        addTXT({ page, text: vol.esp || "", x: PDF.width * 0.102, y: PDF.mtBlock + 59, maxWidth: PDF.width * 0.29, fontStyle: "negrito" });
+
+        addTXT({ page, text: "MARCA", x: PDF.width * 0.273, y: PDF.mtBlock + 49, maxWidth: PDF.width * 0.29 });
+        addTXT({ page, text: vol.marca || "", x: PDF.width * 0.273, y: PDF.mtBlock + 59, maxWidth: PDF.width * 0.29, fontStyle: "negrito" });
+
+        addTXT({ page, text: "NUMERAÇÃO", x: PDF.width * 0.443, y: PDF.mtBlock + 49, maxWidth: PDF.width * 0.29 });
+        addTXT({ page, text: vol.nVol || "", x: PDF.width * 0.443, y: PDF.mtBlock + 59, maxWidth: PDF.width * 0.29, fontStyle: "negrito" });
+
+        addTXT({ page, text: "PESO BRUTO", x: PDF.width * 0.603, y: PDF.mtBlock + 49, maxWidth: PDF.width * 0.29 });
+        addTXT({ page, text: vol.pesoB || "", x: PDF.width * 0.603, y: PDF.mtBlock + 59, maxWidth: PDF.width * 0.29, fontStyle: "negrito" });
+
+        addTXT({ page, text: "PESO LÍQUIDO", x: PDF.width * 0.803, y: PDF.mtBlock + 49, maxWidth: PDF.width * 0.29 });
+        addTXT({ page, text: vol.pesoL || "", x: PDF.width * 0.803, y: PDF.mtBlock + 59, maxWidth: PDF.width * 0.29, fontStyle: "negrito" });
+
+        PDF.mtBlock += 70;
+    }
+
+
+    async function bloco6(page = PDF.pages[(PDF.pages.length - 1)]) {
+        xml.NFe.infNFe.det = Array.isArray(xml.NFe.infNFe.det) ? xml.NFe.infNFe.det : Array(100).fill(xml.NFe.infNFe.det);
+
+        addTXT({ page, text: "DADOS DOS PRODUTOS / SERVIÇOS", x: 3, y: PDF.mtBlock, maxWidth: PDF.width, fontStyle: "negrito" });
+
+        // Cabeçalho da tabela
+        addRet(page, 0, PDF.mtBlock + 8, PDF.width, PDF.pages.length == 1 ? 355 : PDF.height - PDF.mtBlock - 15);
+        addRet(page, 0, PDF.mtBlock + 8, PDF.width, 15);
+        const colunas = [0.1, 0.34, 0.403, 0.453, 0.488, 0.525, 0.6, 0.655, 0.712, 0.76, 0.815, 0.875, 0.92, 0.957];
+        for (const x of colunas) addLTV(page, PDF.width * x, PDF.mtBlock + 8, PDF.pages.length == 1 ? 355 : PDF.height - PDF.mtBlock - 15);
+
+        // Títulos
+        addTXT({ page, text: "CÓDIGO PRODUTO", x: PDF.width * 0.003, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.09, align: "center" });
+        addTXT({ page, text: "DESCRIÇÃO DO PRODUTO / SERVIÇO", x: PDF.width * 0.1, y: PDF.mtBlock + 12, maxWidth: PDF.width * 0.24, align: "center" });
+        addTXT({ page, text: "NCM/SH", x: PDF.width * 0.34, y: PDF.mtBlock + 12, maxWidth: PDF.width * 0.06, align: "center" });
+        addTXT({ page, text: "O/CSOSN", x: PDF.width * 0.4, y: PDF.mtBlock + 12, maxWidth: PDF.width * 0.06, align: "center" });
+        addTXT({ page, text: "CFOP", x: PDF.width * 0.46, y: PDF.mtBlock + 12, maxWidth: PDF.width * 0.025, align: "center" });
+        addTXT({ page, text: "UN", x: PDF.width * 0.495, y: PDF.mtBlock + 12, maxWidth: PDF.width * 0.025, align: "center" });
+        addTXT({ page, text: "QUANT.", x: PDF.width * 0.525, y: PDF.mtBlock + 12, maxWidth: PDF.width * 0.07, align: "center" });
+        addTXT({ page, text: "VALOR UNIT", x: PDF.width * 0.592, y: PDF.mtBlock + 8.5, maxWidth: PDF.width * 0.07, align: "center" });
+        addTXT({ page, text: "VALOR TOTAL", x: PDF.width * 0.65, y: PDF.mtBlock + 8.5, maxWidth: PDF.width * 0.07, align: "center" });
+        addTXT({ page, text: "VALOR DESC", x: PDF.width * 0.7, y: PDF.mtBlock + 8.5, maxWidth: PDF.width * 0.07, align: "center" });
+        addTXT({ page, text: "B.CÁLC ICMS", x: PDF.width * 0.75, y: PDF.mtBlock + 8.5, maxWidth: PDF.width * 0.07, align: "center" });
+        addTXT({ page, text: "VALOR ICMS", x: PDF.width * 0.81, y: PDF.mtBlock + 8.5, maxWidth: PDF.width * 0.07, align: "center" });
+        addTXT({ page, text: "VALOR IPI", x: PDF.width * 0.862, y: PDF.mtBlock + 8.5, maxWidth: PDF.width * 0.07, align: "center" });
+        addTXT({ page, text: "ALÍQ. ICMS", x: PDF.width * 0.924, y: PDF.mtBlock + 8.5, maxWidth: PDF.width * 0.03, align: "center" });
+        addTXT({ page, text: "ALÍQ. IPI", x: PDF.width * 0.961, y: PDF.mtBlock + 8.5, maxWidth: PDF.width * 0.03, align: "center" });
+
+        // Iterar pelos produtos
+        let line = 24,
+            lLimite = PDF.pages.length == 1 ? 53 : 106,
+            lIndex = 0;
+        for (const [iDet, det] of xml.NFe.infNFe.det.entries()) {
+            const prod = det.prod;
+            //Descobrir quantas linhas vamos usar.
+            lIndex += await addTXT({ page, text: prod.xProd, x: 0, y: 0, maxWidth: PDF.width * 0.237, align: "center", cacl: true });
+            if (lIndex >= lLimite) {
+                xml.NFe.infNFe.det.splice(0, iDet);
+                PDF.mtBlock += PDF.pages.length == 1 ? 365 : 50;
+                return false;
+            }
+
+            const imposto = det.imposto || {};
+            const ICMS = imposto.ICMS?.ICMSSN102 || imposto.ICMS?.ICMS00 || {};
+            const IPI = imposto.IPI?.IPITrib || {};
+            const fmt = (v: any) => parseFloat(v || "0.00").toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+
+            const xProdH = await addTXT({ page, text: prod.xProd, x: PDF.width * 0.096, y: PDF.mtBlock + line, maxWidth: PDF.width * 0.237, align: "left" });
+            const y = PDF.mtBlock + line + ((xProdH - 1) * 2.7);
+
+            addTXT({ page, text: prod.cProd, x: 0, y, maxWidth: PDF.width * 0.1, align: "center" });
+            addTXT({ page, text: prod.NCM, x: PDF.width * 0.34, y, maxWidth: PDF.width * 0.061, align: "center" });
+            addTXT({ page, text: ICMS.CSOSN || ICMS.CST || "", x: PDF.width * 0.398, y, maxWidth: PDF.width * 0.061, align: "center" });
+            addTXT({ page, text: prod.CFOP, x: PDF.width * 0.44, y, maxWidth: PDF.width * 0.061, align: "center" });
+            addTXT({ page, text: prod.uCom, x: PDF.width * 0.476, y, maxWidth: PDF.width * 0.061, align: "center" });
+            addTXT({ page, text: fmt(prod.qCom), x: PDF.width * 0.533, y, maxWidth: PDF.width * 0.061, align: "center" });
+            addTXT({ page, text: fmt(prod.vUnCom), x: PDF.width * 0.597, y, maxWidth: PDF.width * 0.061, align: "center" });
+            addTXT({ page, text: fmt(prod.vProd), x: PDF.width * 0.655, y, maxWidth: PDF.width * 0.061, align: "center" });
+            addTXT({ page, text: fmt(prod.vDesc), x: PDF.width * 0.705, y, maxWidth: PDF.width * 0.061, align: "center" });
+            addTXT({ page, text: fmt(prod.vBC), x: PDF.width * 0.756, y, maxWidth: PDF.width * 0.061, align: "center" });
+            addTXT({ page, text: fmt(prod.vICMS), x: PDF.width * 0.816, y, maxWidth: PDF.width * 0.061, align: "center" });
+            addTXT({ page, text: fmt(prod.vIPI), x: PDF.width * 0.868, y, maxWidth: PDF.width * 0.061, align: "center" });
+            addTXT({ page, text: fmt(ICMS.pICMS), x: PDF.width * 0.908, y, maxWidth: PDF.width * 0.061, align: "center" });
+            addTXT({ page, text: fmt(IPI.pIPI), x: PDF.width * 0.954, y, maxWidth: PDF.width * 0.061, align: "center" });
+
+            line += 10 + ((xProdH - 1) * 3);
+        }
+        PDF.mtBlock += 365;
+        return true;
+    }
+
+
+
+    async function bloco7(page = PDF.pages[(PDF.pages.length - 1)]) {
+        addTXT({ page, text: "DADOS ADICIONAIS", x: 3, y: PDF.mtBlock, maxWidth: PDF.width, fontStyle: "negrito" });
+        addRet(page, 0, PDF.mtBlock + 8, PDF.width, 40);
+        addRet(page, 0, PDF.mtBlock + 8, PDF.width * 0.65, 40);
+
+        addTXT({ page, text: "INFORMAÇÕES COMPLEMENTARES", x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.5, align: "left", fontStyle: "negrito" });
+        addTXT({ page, text: "RESERVADO AO FISCO", x: PDF.width * 0.652, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.5, align: "left", fontStyle: "negrito" });
+        PDF.mtBlock += 40;
+    }
+
+    async function bloco8(page = PDF.pages[(PDF.pages.length - 1)]) {
+        const agora = new Date();
+        const dataFormatada = agora.toLocaleDateString('pt-BR');
+        const horaFormatada = agora.toLocaleTimeString('pt-BR');
+        const textoEsquerda = `Impresso em ${dataFormatada} às ${horaFormatada}  Guara PDV - https://guaradev.com`;
+
+        addTXT({ page, text: textoEsquerda, x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width, align: "left" });
+        addTXT({ page, text: "Powered by GuaraDEV", x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.989, align: "right", fontStyle: "italic" });
+    }
+
+
+    async function addIMG({
+        page,
+        img,
+        x,
+        y,
+        h,
+        w,
+    }: {
+        page: any;
+        img: string;
+        x: number;
+        y: number;
+        h: number;
+        w: number;
+    }) {
+        if (typeof img != undefined) {
+            let imgDemo = await fetch(img || "").then(response => response.blob()).then(blob => blob2base64(blob));
+
+            // Decodifica Base64 e embeleza no PDF
+            const base64Data = imgDemo?.split(',')[1] as ""; // tira "data:image/png;base64," se tiver
+            const bytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+
+            // Detecta o tipo (png ou jpg?)
+            const isPng = imgDemo?.startsWith('data:image/png');
+
+            // Embed imagem
+            const image = isPng
+                ? await PDF.doc.embedPng(bytes)
+                : await PDF.doc.embedJpg(bytes);
+
+            await page.drawImage(image, {
+                x: x,
+                y: PDF.height - y - h, // Corrige porque pdf-lib desenha do canto inferior da imagem
+                width: w,
+                height: h,
+            });
+        }
+
+    }
+
+    function blob2base64(blob: any): Promise<any> {
+        const reader = new FileReader();
+        reader.readAsDataURL(blob);
+        return new Promise(resolve => {
+            reader.onloadend = () => {
+                resolve(reader.result);
+            };
+        });
     }
 
     async function blocoDEMO(page = PDF.pages[(PDF.pages.length - 1)]) {
