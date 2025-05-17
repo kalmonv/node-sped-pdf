@@ -1,8 +1,8 @@
 # Diretório de dependências do Node.js
 node_modules/
+public/
+
 
 # Arquivo de saída
 saida.txt
-
-# Pasta de testes
-public/
+index.html

@@ -1,6 +1,6 @@
 {
   "name": "node-sped-pdf",
-  "version": "1.0.43",
+  "version": "1.0.44",
   "author": "Kalmon V. Tavares",
   "type": "module",
   "keywords": [
@@ -38,5 +38,10 @@
     "jsbarcode": "^3.11.6",
     "pdf-lib": "^1.17.1",
     "qrcode": "^1.5.4"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kalmonv/node-sped-pdf.git"
+  },
+  "license": "MIT"
 }
