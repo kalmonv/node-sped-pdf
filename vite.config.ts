@@ -13,6 +13,6 @@ export default defineConfig({
     global: 'window',
   },
   optimizeDeps: {
-    include: ['pdfkit'],
+    include: [],
   },
 });

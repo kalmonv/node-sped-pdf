@@ -42,7 +42,7 @@
     </div>
 
     <script type="module">
-        import { DANFe } from './src/index.ts'; // descomente se o arquivo existir
+        import { DANFe, DANFCe } from './src/index.ts'; // descomente se o arquivo existir
 
         function onChangeTexto(event) {
             const textarea = event.target;
@@ -57,8 +57,8 @@
 
         //const textarea = document.getElementById("meuTextarea");
         //textarea.addEventListener("input", onChangeTexto);
-        fetch("/DANFE.xml").then(res => res.text()).then(xml => {
-            DANFe({ xml, imgDemo: "http://localhost:5173/demo1.png", logo: "http://localhost:5173/logo.jpg" }).then(res => {
+        fetch("/DANFCE.xml").then(res => res.text()).then(xml => {
+            DANFCe({ xml, imgDemo: "http://localhost:5173/demo1.png", logo: "http://localhost:5173/logo.jpg" }).then(res => {
                 console.log(res)
                 const blob = new Blob([res], { type: 'application/pdf' }); // <- usa res direto
                 const url = URL.createObjectURL(blob);

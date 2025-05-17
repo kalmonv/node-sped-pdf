@@ -1,5 +1,7 @@
 import { PDFDocument, StandardFonts, rgb, PDFFont } from "pdf-lib"
 import { XMLParser } from "fast-xml-parser"
+import JsBarcode from "jsbarcode"
+import canvas from "canvas"
 
 
 
@@ -16,12 +18,14 @@ const DANFe = async (data: { xml?: string, xmlRes?: Record<string, any> | null, 
         width: number;
         height: number;
         mtBlock: number;
+        barCode: string | null;
     } = {
         doc: await PDFDocument.create(),
         pages: [],
         width: 0,
         height: 0,
         mtBlock: 0,
+        barCode: null
     }, isBrowser = typeof window !== 'undefined',
         xml = parser.parse(data.xml || ""),
         xmlRes = data.xmlRes,
@@ -253,6 +257,7 @@ const DANFe = async (data: { xml?: string, xmlRes?: Record<string, any> | null, 
         addTXT({ page, size: 10, text: `Nº. ${xml.NFe.infNFe.ide.nNF.padStart(9, '0')}`, x: PDF.width * 0.4, y: PDF.mtBlock + 63, maxWidth: PDF.width * 0.19, align: "center", fontStyle: "negrito" });
         addTXT({ page, size: 10, text: `Série ${xml.NFe.infNFe.ide.serie.padStart(3, '0')}`, x: PDF.width * 0.398, y: PDF.mtBlock + 72, maxWidth: PDF.width * 0.19, align: "center", fontStyle: "negrito" });
 
+        await addIMG({ page, img: await barCode() as string, x: PDF.width * 0.595, y: PDF.mtBlock + 6, w: PDF.width * 0.39, h: 44 });
 
         addTXT({ page, text: "CHAVE DE ACESSO", x: PDF.width * 0.575, y: PDF.mtBlock + 47, maxWidth: PDF.width * 0.19 });
         addTXT({ page, size: 8, text: xml.NFe.infNFe["@Id"].replace("NFe", "").replace(/(\d{4})(?=\d)/g, "$1 "), x: PDF.width * 0.595, y: PDF.mtBlock + 58, maxWidth: PDF.width * 0.39, align: "center", fontStyle: "negrito" });
@@ -280,7 +285,42 @@ const DANFe = async (data: { xml?: string, xmlRes?: Record<string, any> | null, 
         PDF.mtBlock += 133;
     }
 
+    async function barCode(): Promise<Buffer | string> {
+        if(PDF.barCode!=null) return PDF.barCode;
+        const isNode = typeof window === 'undefined';
+        if (isNode) {
+            // --- NODE.JS ---
+            const { createCanvas } = await import('canvas');
+            const canvas = createCanvas(400, 100);
+            JsBarcode(canvas, xml.NFe.infNFe["@Id"], {
+                format: 'CODE128',
+                displayValue: false,
+                fontSize: 18,
+            });
 
+            PDF.barCode = canvas.toDataURL('image/png');
+            // Retorna base64 (imagem PNG)
+            return PDF.barCode;
+        } else {
+            // --- BROWSER ---
+            return new Promise((resolve, reject) => {
+                try {
+                    const canvas = document.createElement('canvas');
+                    JsBarcode(canvas, xml.NFe.infNFe["@Id"], {
+                        format: 'CODE128',
+                        displayValue: false,
+                        fontSize: 18,
+                    });
+
+
+                    PDF.barCode =  canvas.toDataURL('image/png')
+                    resolve(PDF.barCode);
+                } catch (err) {
+                    reject(err);
+                }
+            });
+        }
+    }
 
     async function bloco2(page = PDF.pages[(PDF.pages.length - 1)]) {
         addRet(page, 0, PDF.mtBlock + 10, PDF.width * 0.603, 20);
@@ -414,7 +454,7 @@ const DANFe = async (data: { xml?: string, xmlRes?: Record<string, any> | null, 
         const transp = xml.NFe.infNFe.transp || {};
         const vol = Array.isArray(transp.vol) ? transp.vol[0] : (transp.vol || {});
 
-        const modFreteMap = {
+        const modFreteMap: any = {
             "0": "0-Emitente",
             "1": "1-Destinatário",
             "2": "2-Terceiros",
@@ -628,7 +668,6 @@ const DANFe = async (data: { xml?: string, xmlRes?: Record<string, any> | null, 
                 height: h,
             });
         }
-
     }
 
     function blob2base64(blob: any): Promise<any> {
