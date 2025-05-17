@@ -1,6 +1,6 @@
 # Diretório de dependências do Node.js
-node_modules/
-public/
+node_modules/*
+public/*
 
 
 # Arquivo de saída
