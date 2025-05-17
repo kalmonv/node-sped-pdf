@@ -6,6 +6,12 @@
 
 **node-sped-pdf** é uma biblioteca desenvolvida para facilitar a geração do Documento Auxiliar da Nota Fiscal Eletrônica (DANFE) a partir do XML da NFe (modelo 55) e NFC-e (modelo 65). O projeto permite geração rápida e eficiente, tanto em ambientes Node.js quanto diretamente no navegador.
 
+---
+
+[🔎 Ver exemplo NFC-e PDF](https://github.com/kalmonv/node-sped-pdf/blob/main/exemplos/DANFCe.pdf)
+&nbsp;&nbsp;
+[📄 Ver exemplo NFe PDF](https://github.com/kalmonv/node-sped-pdf/blob/main/exemplos/DANFe.pdf)
+
 ## ⚙️ Instalação
 
 ```bash
