@@ -1,1358 +1,1007 @@
-var __typeError = (msg) => {
-  throw TypeError(msg);
-};
-var __accessCheck = (obj, member, msg) => member.has(obj) || __typeError("Cannot " + msg);
-var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
-var __privateAdd = (obj, member, value) => member.has(obj) ? __typeError("Cannot add the same private member more than once") : member instanceof WeakSet ? member.add(obj) : member.set(obj, value);
-var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
-var __privateMethod = (obj, member, method) => (__accessCheck(obj, member, "access private method"), method);
-
 // src/libs/danfe.ts
-import PDFDocument from "@react-pdf/pdfkit";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { XMLParser } from "fast-xml-parser";
-var _pdf, _nextBloco, _xml, _xmlRes, _logo, _imgDemo, _isBrowser, _danfe_instances, gerarBlocos_fn, demo_fn, bloco0_fn, bloco1_fn, formtPTBR_fn, bloco2_fn, bloco3_fn, traduzirFormaPagamento_fn, bloco4_fn, traduzirTipoFrete_fn, bloco5_fn, bloco6_fn, bloco7_fn, _pdfWidth, _pdfHeight, _pdfMargin, _pdfOpc, _mtIndex, _pagIndex, _pagQtd, base64IMG_fn, addBase64IMG_fn, blob2base64_fn, addRetangulo_fn, addLinhaHT_fn, addLinhaH_fn, addLinhaV_fn, addLinhaVT_fn, addTXT_fn;
-var danfe = class {
-  constructor(data = {}) {
-    __privateAdd(this, _danfe_instances);
-    __privateAdd(this, _pdf);
-    __privateAdd(this, _nextBloco, 0);
-    __privateAdd(this, _xml, {});
-    __privateAdd(this, _xmlRes, null);
-    __privateAdd(this, _logo, null);
-    __privateAdd(this, _imgDemo, null);
-    __privateAdd(this, _isBrowser, false);
-    // ---------------- FUNCOES ----------------
-    __privateAdd(this, _pdfWidth, 595.28);
-    __privateAdd(this, _pdfHeight, 841.89);
-    __privateAdd(this, _pdfMargin, 5);
-    __privateAdd(this, _pdfOpc, {
-      borda: "black",
-      txt: "black",
-      lineWidth: 1,
-      ltraj: "#4b5563"
+import JsBarcode from "jsbarcode";
+var DANFe = async (data = {}) => {
+  const parser = new XMLParser({
+    ignoreAttributes: false,
+    attributeNamePrefix: "@",
+    parseTagValue: false
+    // Evita conversão automática de valores
+  });
+  var PDF = {
+    doc: await PDFDocument.create(),
+    pages: [],
+    width: 0,
+    height: 0,
+    mtBlock: 0,
+    barCode: null
+  }, isBrowser = typeof window !== "undefined", xml = parser.parse(data.xml || ""), xmlRes = data.xmlRes, logo = data.logo, imgDemo = data.imgDemo;
+  console.log(xml);
+  PDF.pages.push(PDF.doc.addPage());
+  PDF.width = PDF.pages[0].getWidth();
+  PDF.height = PDF.pages[0].getHeight();
+  async function addRet(page, x, y, w, h) {
+    page.drawRectangle({
+      x: x + 4,
+      y: PDF.height - h - (y + 4),
+      width: x + w + 8 >= PDF.width ? PDF.width - x - 8 : w,
+      height: h,
+      borderColor: rgb(0, 0, 0),
+      borderWidth: 1
     });
-    __privateAdd(this, _mtIndex, 0);
-    //Margem do topo para proximo bloco
-    __privateAdd(this, _pagIndex, 1);
-    __privateAdd(this, _pagQtd, 1);
-    __privateSet(this, _isBrowser, typeof window !== "undefined");
-    const parser = new XMLParser({
-      ignoreAttributes: false,
-      attributeNamePrefix: "@",
-      parseTagValue: false
-      // Evita conversão automática de valores
-    });
-    let tXml = data.xml ? parser.parse(data.xml) : {};
-    if (typeof tXml.nfeProc != "undefined") {
-      tXml = tXml.nfeProc;
-    }
-    __privateSet(this, _xml, tXml);
-    console.log(tXml);
-    __privateSet(this, _xmlRes, data.xmlRes || null);
-    __privateSet(this, _logo, data.logo || null);
-    __privateSet(this, _imgDemo, data.imgDemo || null);
-    __privateSet(this, _pdf, new PDFDocument({
-      bufferPages: true,
-      margin: 0,
-      size: [
-        __privateGet(this, _pdfWidth),
-        __privateGet(this, _pdfHeight)
-      ],
-      info: {
-        Author: "Kalmon Valadao Tavares",
-        Title: "DANFE",
-        Creator: "Guara DEV",
-        Producer: "http://github.com/brasil-js/danfe"
-      }
-    }));
   }
-  async getPDF() {
-    return new Promise(async (resolve, reject) => {
-      if (__privateGet(this, _isBrowser)) {
-        const stream = __privateGet(this, _pdf).pipe(window.blobStream());
-        await __privateMethod(this, _danfe_instances, gerarBlocos_fn).call(this);
-        if (__privateGet(this, _imgDemo) != null) __privateMethod(this, _danfe_instances, demo_fn).call(this);
-        __privateGet(this, _pdf).end();
-        stream.on("finish", () => {
-          const blob = stream.toBlob("application/pdf");
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const result = reader.result;
-            const base64 = result.slice(result.indexOf(",") + 1);
-            resolve(base64);
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
+  async function addLTH(page, x, y, h) {
+    const startX = Math.max(x, 4);
+    const endX = Math.min(x + h, PDF.width - 4);
+    const fixedY = PDF.height - y - 4;
+    page.drawLine({
+      start: { x: startX, y: fixedY },
+      end: { x: endX, y: fixedY },
+      color: rgb(0, 0, 0),
+      thickness: 1,
+      dashArray: [5, 3]
+    });
+  }
+  async function addLTV(page, x, y, w) {
+    const fixedX = Math.max(4, Math.min(x, PDF.width - 4));
+    const startY = Math.max(PDF.height - y - 4, 4);
+    const endY = Math.max(PDF.height - (y + w) - 4, 4);
+    page.drawLine({
+      start: { x: fixedX, y: startY },
+      end: { x: fixedX, y: endY },
+      color: rgb(0, 0, 0),
+      thickness: 1,
+      dashArray: [5, 3]
+    });
+  }
+  async function addTXT({
+    page,
+    text,
+    x,
+    y,
+    maxWidth,
+    fontStyle = "normal",
+    size = 7,
+    lineHeight,
+    align = "left",
+    cacl = false
+  }) {
+    let font;
+    switch (fontStyle) {
+      case "negrito":
+        font = await PDF.doc.embedFont(StandardFonts.TimesRomanBold);
+        break;
+      case "italic":
+        font = await PDF.doc.embedFont(StandardFonts.TimesRomanItalic);
+        break;
+      default:
+        font = await PDF.doc.embedFont(StandardFonts.TimesRoman);
+    }
+    if (maxWidth + x > PDF.width) maxWidth = PDF.width - x - 2;
+    const effectiveLineHeight = lineHeight ?? size * 0.9;
+    const lines = wrapText(text, maxWidth, font, size);
+    if (cacl) return lines.length;
+    lines.forEach((line, index) => {
+      const textWidth = font.widthOfTextAtSize(line, size);
+      let drawX = x + 4;
+      if (align === "center") {
+        drawX = x + (maxWidth - textWidth) / 2;
+      } else if (align === "right") {
+        drawX = x + maxWidth - textWidth;
+      }
+      page.drawText(line, {
+        x: drawX,
+        y: PDF.height - effectiveLineHeight - (y + 4) - index * effectiveLineHeight,
+        size,
+        font
+      });
+    });
+    return lines.length;
+  }
+  function wrapText(text, maxWidth, font, fontSize) {
+    const words = text.split(" ");
+    const lines = [];
+    let line = "";
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i];
+      const testLine = line + word + " ";
+      const testWidth = font.widthOfTextAtSize(testLine, fontSize);
+      if (testWidth > maxWidth && line !== "") {
+        lines.push(line.trim());
+        line = word + " ";
       } else {
-        const { PassThrough } = await import("stream");
-        const stream = new PassThrough();
-        const chunks = [];
-        await __privateMethod(this, _danfe_instances, gerarBlocos_fn).call(this);
-        if (__privateGet(this, _imgDemo) != null) await __privateMethod(this, _danfe_instances, demo_fn).call(this);
-        __privateGet(this, _pdf).pipe(stream);
-        __privateGet(this, _pdf).end();
-        stream.on("data", (chunk) => chunks.push(chunk));
-        stream.on("end", () => {
-          const buffer = Buffer.concat(chunks);
-          const base64 = buffer.toString("base64");
-          resolve(base64);
-        });
-        stream.on("error", reject);
+        line = testLine;
       }
-    });
-  }
-};
-_pdf = new WeakMap();
-_nextBloco = new WeakMap();
-_xml = new WeakMap();
-_xmlRes = new WeakMap();
-_logo = new WeakMap();
-_imgDemo = new WeakMap();
-_isBrowser = new WeakMap();
-_danfe_instances = new WeakSet();
-gerarBlocos_fn = async function() {
-  await __privateMethod(this, _danfe_instances, bloco0_fn).call(this);
-  await __privateMethod(this, _danfe_instances, bloco1_fn).call(this);
-  await __privateMethod(this, _danfe_instances, bloco2_fn).call(this);
-  await __privateMethod(this, _danfe_instances, bloco3_fn).call(this);
-  await __privateMethod(this, _danfe_instances, bloco4_fn).call(this);
-  await __privateMethod(this, _danfe_instances, bloco5_fn).call(this);
-  await __privateMethod(this, _danfe_instances, bloco6_fn).call(this);
-};
-demo_fn = function() {
-  __privateGet(this, _pdf).image(__privateGet(this, _imgDemo), 0, 0, { width: __privateGet(this, _pdfWidth) }).text("", 0, 0);
-};
-//Recibo
-bloco0_fn = function() {
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: 0, t: __privateGet(this, _pdfHeight) * 0.03, w: __privateGet(this, _pdfWidth) * 0.805, h: __privateGet(this, _pdfHeight) * 0.03 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, { aling: "left", txt: "IDENTIFICA\xC7\xC3O E ASSINATURA DO RECEBEDOR", l: __privateGet(this, _pdfWidth) * 0.18, t: 28, w: __privateGet(this, _pdfWidth) * 0.5 });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: 0, t: 0, w: __privateGet(this, _pdfWidth) * 0.805, h: __privateGet(this, _pdfHeight) * 0.06 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, { aling: "justify", l: 2, t: 3, w: __privateGet(this, _pdfWidth) * 0.78, txt: `RECEBEMOS DE ${__privateGet(this, _xml).NFe.infNFe.emit.xNome} OS PRODUTOS E/OU SERVI\xC7OS CONSTANTES DA NOTA FISCAL ELETR\xD4NICA INDICADA ABAIXO. EMISS\xC3O: ${new Date(__privateGet(this, _xml).NFe.infNFe.ide.dhEmi).toLocaleString().split(",")[0]} VALOR TOTAL: R$ ${__privateGet(this, _xml).NFe.infNFe.total.ICMSTot.vNF} DESTINAT\xC1RIO: ${__privateGet(this, _xml).NFe.infNFe.dest.xNome} - ${__privateGet(this, _xml).NFe.infNFe.dest.enderDest.xLgr}, N\xB0${__privateGet(this, _xml).NFe.infNFe.dest.enderDest.nro}, Bairro ${__privateGet(this, _xml).NFe.infNFe.dest.enderDest.xBairro}, ${__privateGet(this, _xml).NFe.infNFe.dest.enderDest.xMun}}-${__privateGet(this, _xml).NFe.infNFe.dest.enderDest.UF}` });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: 0, t: __privateGet(this, _pdfHeight) * 0.03, w: __privateGet(this, _pdfWidth) * 0.175, h: __privateGet(this, _pdfHeight) * 0.03 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, { aling: "left", txt: "DATA DE RECEBIMENTO", l: 2, t: 28, w: __privateGet(this, _pdfWidth) * 0.17 });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: 0, t: 0, w: __privateGet(this, _pdfWidth), h: __privateGet(this, _pdfHeight) * 0.06 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, { aling: "center", font: "bold", txt: "NF-e", l: __privateGet(this, _pdfWidth) * 0.81, t: 6, size: 15, w: __privateGet(this, _pdfWidth) * 0.18 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, { aling: "center", font: "bold", txt: `N\xBA.  ${__privateGet(this, _xml).NFe.infNFe.ide.nNF.padStart(9, "0").slice(0, 3)}.${__privateGet(this, _xml).NFe.infNFe.ide.nNF.padStart(9, "0").slice(3, 6)}.${__privateGet(this, _xml).NFe.infNFe.ide.nNF.padStart(9, "0").slice(6, 9)}`, l: __privateGet(this, _pdfWidth) * 0.81, t: 22, size: 12, w: __privateGet(this, _pdfWidth) * 0.18 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, { aling: "center", font: "bold", txt: `S\xE9rie ${__privateGet(this, _xml).NFe.infNFe.ide.serie}`, l: __privateGet(this, _pdfWidth) * 0.81, t: 34, size: 12, w: __privateGet(this, _pdfWidth) * 0.18 });
-  __privateMethod(this, _danfe_instances, addLinhaHT_fn).call(this, { t: __privateGet(this, _pdfHeight) * 0.07, ls: 0, le: __privateGet(this, _pdfWidth) });
-  __privateSet(this, _mtIndex, __privateGet(this, _mtIndex) + __privateGet(this, _pdfHeight) * 0.071);
-};
-bloco1_fn = async function() {
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: 0, t: 0, w: __privateGet(this, _pdfWidth) * 0.41, h: __privateGet(this, _pdfHeight) * 0.108 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "center",
-    font: "italic",
-    txt: "IDENTIFICA\xC7\xC3O DO EMITENTE",
-    l: 0,
-    t: 3,
-    w: __privateGet(this, _pdfWidth) * 0.4
-  });
-  let mtLogo = 0;
-  if (__privateGet(this, _logo) != null) {
-    if (__privateGet(this, _logo).includes("http")) {
-      __privateSet(this, _logo, await fetch(__privateGet(this, _logo)).then((response) => response.blob()).then((blob) => __privateMethod(this, _danfe_instances, blob2base64_fn).call(this, blob)));
     }
-    __privateMethod(this, _danfe_instances, addBase64IMG_fn).call(this, { l: 3, t: 8, w: __privateGet(this, _pdfWidth) * 0.41, h: __privateGet(this, _pdfHeight) * 0.108, base64: __privateGet(this, _logo) });
-    mtLogo = 28;
-  }
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "center",
-    font: "bold",
-    txt: __privateGet(this, _xml).NFe.infNFe.emit.xNome,
-    l: 0,
-    t: 34 + mtLogo,
-    w: __privateGet(this, _pdfWidth) * 0.4,
-    size: 12
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "center",
-    txt: `${__privateGet(this, _xml).NFe.infNFe.emit.enderEmit.xLgr}, N\xB0${__privateGet(this, _xml).NFe.infNFe.emit.enderEmit.nro}, ${__privateGet(this, _xml).NFe.infNFe.emit.enderEmit.xBairro}, CEP ${__privateGet(this, _xml).NFe.infNFe.emit.enderEmit.CEP}`,
-    l: 0,
-    t: 44 + mtLogo,
-    w: __privateGet(this, _pdfWidth) * 0.4,
-    size: 10
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "center",
-    txt: `${__privateGet(this, _xml).NFe.infNFe.emit.enderEmit.xMun} - ${__privateGet(this, _xml).NFe.infNFe.emit.enderEmit.UF}, Fone ${__privateGet(this, _xml).NFe.infNFe.emit.enderEmit.fone}`,
-    l: 0,
-    t: 54 + mtLogo,
-    w: __privateGet(this, _pdfWidth) * 0.4,
-    size: 10
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.41, t: 0, w: __privateGet(this, _pdfWidth) * 0.168, h: __privateGet(this, _pdfHeight) * 0.108 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "center",
-    font: "bold",
-    txt: "DANFE",
-    l: __privateGet(this, _pdfWidth) * 0.41,
-    t: 8,
-    w: __privateGet(this, _pdfWidth) * 0.167,
-    size: 12
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "center",
-    txt: "Documento Auxiliar da Nota Fiscal Eletr\xF4nica",
-    l: __privateGet(this, _pdfWidth) * 0.41,
-    t: 20,
-    w: __privateGet(this, _pdfWidth) * 0.167
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "0 - ENTRADA\n1 - SA\xCDDA",
-    l: __privateGet(this, _pdfWidth) * 0.42,
-    t: 39,
-    w: __privateGet(this, _pdfWidth) * 0.169,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "center",
-    font: "bold",
-    txt: `N\xBA. ${__privateGet(this, _xml).NFe.infNFe.ide.nNF}`,
-    l: __privateGet(this, _pdfWidth) * 0.41,
-    t: 61,
-    w: __privateGet(this, _pdfWidth) * 0.167,
-    size: 11
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "center",
-    font: "bold",
-    txt: `S\xE9rie ${__privateGet(this, _xml).NFe.infNFe.ide.serie}`,
-    l: __privateGet(this, _pdfWidth) * 0.41,
-    t: 71,
-    w: __privateGet(this, _pdfWidth) * 0.167,
-    size: 11
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "center",
-    font: "italic",
-    txt: `Folha ${__privateGet(this, _pagIndex)}/${__privateGet(this, _pagQtd)}`,
-    l: __privateGet(this, _pdfWidth) * 0.41,
-    t: 81,
-    w: __privateGet(this, _pdfWidth) * 0.167,
-    size: 8
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.54, t: __privateGet(this, _pdfHeight) * 0.045, w: __privateGet(this, _pdfWidth) * 0.023, h: __privateGet(this, _pdfHeight) * 0.023 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "center",
-    font: "bold",
-    txt: "1",
-    l: __privateGet(this, _pdfWidth) * 0.54,
-    t: __privateGet(this, _pdfHeight) * 0.05,
-    w: __privateGet(this, _pdfWidth) * 0.023,
-    size: 15
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.578, t: 0, w: __privateGet(this, _pdfWidth), h: __privateGet(this, _pdfHeight) * 0.054 });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.578, t: __privateGet(this, _pdfHeight) * 0.054, w: __privateGet(this, _pdfWidth), h: __privateGet(this, _pdfHeight) * 0.027 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "center",
-    txt: "IDENTIFICA\xC7\xC3O DO EMITENTE",
-    l: __privateGet(this, _pdfWidth) * 0.582,
-    t: __privateGet(this, _pdfHeight) * 0.056
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: __privateGet(this, _xml).NFe.infNFe["@Id"].replace("NFe", "").match(/.{1,4}/g).join(" "),
-    l: __privateGet(this, _pdfWidth) * 0.582,
-    t: __privateGet(this, _pdfHeight) * 0.071,
-    w: __privateGet(this, _pdfWidth),
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.578, t: __privateGet(this, _pdfHeight) * 0.0808, w: __privateGet(this, _pdfWidth), h: __privateGet(this, _pdfHeight) * 0.027 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "center",
-    txt: "Consulta de autenticidade no portal nacional da NF-e",
-    l: __privateGet(this, _pdfWidth) * 0.582,
-    t: __privateGet(this, _pdfHeight) * 0.084,
-    w: __privateGet(this, _pdfWidth),
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "center",
-    txt: "www.nfe.fazenda.gov.br/portal ou no site da Sefaz Autorizadora",
-    l: __privateGet(this, _pdfWidth) * 0.582,
-    t: __privateGet(this, _pdfHeight) * 0.097,
-    w: __privateGet(this, _pdfWidth),
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: 0, t: __privateGet(this, _pdfHeight) * 0.108, w: __privateGet(this, _pdfWidth) * 0.578, h: __privateGet(this, _pdfHeight) * 0.023 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "center",
-    txt: "NATUREZA DA OPERA\xC7\xC3O",
-    l: 3,
-    t: __privateGet(this, _pdfHeight) * 0.11,
-    w: __privateGet(this, _pdfWidth) * 0.56
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "center",
-    txt: __privateGet(this, _xml).NFe.infNFe.ide.natOp,
-    l: 3,
-    t: __privateGet(this, _pdfHeight) * 0.121,
-    w: __privateGet(this, _pdfWidth) * 0.56,
-    font: "bold",
-    size: 10
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.578, t: __privateGet(this, _pdfHeight) * 0.108, w: __privateGet(this, _pdfWidth) * 0.578, h: __privateGet(this, _pdfHeight) * 0.023 });
-  if (typeof __privateGet(this, _xml).protNFe != "undefined") {
-    __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-      aling: "center",
-      txt: "PROTOCOLO DE AUTORIZA\xC7\xC3O DE USO",
-      l: __privateGet(this, _pdfWidth) * 0.58,
-      t: __privateGet(this, _pdfHeight) * 0.11
-    });
-    __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-      font: "bold",
-      aling: "center",
-      txt: `${__privateGet(this, _xml).protNFe.nProt} - ${__privateMethod(this, _danfe_instances, formtPTBR_fn).call(this, __privateGet(this, _xml).protNFe.dhRecbto)}`,
-      l: __privateGet(this, _pdfWidth) * 0.582,
-      t: __privateGet(this, _pdfHeight) * 0.122,
-      w: __privateGet(this, _pdfWidth),
-      size: 9
-    });
-  }
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: 0, t: __privateGet(this, _pdfHeight) * 0.131, w: __privateGet(this, _pdfWidth) * 0.256, h: __privateGet(this, _pdfHeight) * 0.023 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "INSCRI\xC7\xC3O ESTADUAL",
-    l: 2,
-    t: __privateGet(this, _pdfHeight) * 0.133
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: __privateGet(this, _xml).NFe.infNFe.emit.IE || "",
-    l: 0,
-    t: __privateGet(this, _pdfHeight) * 0.145,
-    w: __privateGet(this, _pdfWidth) * 0.24,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.256, t: __privateGet(this, _pdfHeight) * 0.131, w: __privateGet(this, _pdfWidth) * 0.249, h: __privateGet(this, _pdfHeight) * 0.023 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "INSCRI\xC7\xC3O MUNICIPAL",
-    l: __privateGet(this, _pdfWidth) * 0.259,
-    t: __privateGet(this, _pdfHeight) * 0.133
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: __privateGet(this, _xml).NFe.infNFe.emit.IM || "",
-    l: __privateGet(this, _pdfWidth) * 0.259,
-    t: __privateGet(this, _pdfHeight) * 0.145,
-    w: __privateGet(this, _pdfWidth) * 0.24,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.505, t: __privateGet(this, _pdfHeight) * 0.131, w: __privateGet(this, _pdfWidth) * 0.578, h: __privateGet(this, _pdfHeight) * 0.023 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "INSCRI\xC7\xC3O ESTADUAL DO SUBST. TRIBUT",
-    l: __privateGet(this, _pdfWidth) * 0.507,
-    t: __privateGet(this, _pdfHeight) * 0.133
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: __privateGet(this, _xml).NFe.infNFe.emit.I_EST || "",
-    l: __privateGet(this, _pdfWidth) * 0.507,
-    t: __privateGet(this, _pdfHeight) * 0.145,
-    w: __privateGet(this, _pdfWidth) * 0.24,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.753, t: __privateGet(this, _pdfHeight) * 0.131, w: __privateGet(this, _pdfWidth) * 0.578, h: __privateGet(this, _pdfHeight) * 0.023 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "center",
-    txt: "CNPJ / CPF",
-    l: __privateGet(this, _pdfWidth) * 0.755,
-    t: __privateGet(this, _pdfHeight) * 0.133
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: __privateGet(this, _xml).NFe.infNFe.emit.CPF || __privateGet(this, _xml).NFe.infNFe.emit.CNPJ,
-    l: __privateGet(this, _pdfWidth) * 0.755,
-    t: __privateGet(this, _pdfHeight) * 0.145,
-    w: __privateGet(this, _pdfWidth),
-    size: 9
-  });
-  __privateSet(this, _mtIndex, __privateGet(this, _mtIndex) + __privateGet(this, _pdfHeight) * 0.16);
-};
-formtPTBR_fn = function(dataIso) {
-  const data = new Date(dataIso);
-  const dia = String(data.getDate()).padStart(2, "0");
-  const mes = String(data.getMonth() + 1).padStart(2, "0");
-  const ano = data.getFullYear();
-  const horas = String(data.getHours()).padStart(2, "0");
-  const minutos = String(data.getMinutes()).padStart(2, "0");
-  const segundos = String(data.getSeconds()).padStart(2, "0");
-  return `${dia}/${mes}/${ano} ${horas}:${minutos}:${segundos}`;
-};
-bloco2_fn = function() {
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "left",
-    txt: "DESTINAT\xC1RIO / REMETENTE",
-    l: 0,
-    t: 1,
-    size: 8
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: 0, t: 8, w: __privateGet(this, _pdfWidth) * 0.61, h: __privateGet(this, _pdfHeight) * 0.023 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "NOME / RAZ\xC3O SOCIAL",
-    l: 2,
-    t: 10
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "left",
-    txt: __privateGet(this, _xml).NFe.infNFe.dest.xNome,
-    l: 2,
-    t: __privateGet(this, _pdfHeight) * 0.023,
-    w: __privateGet(this, _pdfWidth) * 0.61,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.61, t: 8, w: __privateGet(this, _pdfWidth) * 0.225, h: __privateGet(this, _pdfHeight) * 0.023 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "CNPJ / CPF",
-    l: __privateGet(this, _pdfWidth) * 0.61,
-    t: 10
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: __privateGet(this, _xml).NFe.infNFe.dest.CPF || __privateGet(this, _xml).NFe.infNFe.dest.CNPJ,
-    l: __privateGet(this, _pdfWidth) * 0.61,
-    t: __privateGet(this, _pdfHeight) * 0.023,
-    w: __privateGet(this, _pdfWidth) * 0.225,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.835, t: 8, w: __privateGet(this, _pdfWidth) * 0.225, h: __privateGet(this, _pdfHeight) * 0.023 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "DATA DA EMISS\xC3O",
-    l: __privateGet(this, _pdfWidth) * 0.835,
-    t: 10
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: __privateMethod(this, _danfe_instances, formtPTBR_fn).call(this, __privateGet(this, _xml).NFe.infNFe.ide.dhEmi).split(" ")[0],
-    l: __privateGet(this, _pdfWidth) * 0.835,
-    t: __privateGet(this, _pdfHeight) * 0.023,
-    w: __privateGet(this, _pdfWidth) * 0.15,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: 0, t: 27.5, w: __privateGet(this, _pdfWidth) * 0.47, h: 19 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "ENDERE\xC7O",
-    l: 2,
-    t: 29
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "left",
-    txt: __privateGet(this, _xml).NFe.infNFe.dest.enderDest.xLgr,
-    l: 2,
-    t: 39,
-    w: __privateGet(this, _pdfWidth) * 0.45,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.47, t: 27.5, w: __privateGet(this, _pdfWidth) * 0.205, h: 19 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "BAIRRO / DISTRITO",
-    l: __privateGet(this, _pdfWidth) * 0.472,
-    t: 29
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: __privateGet(this, _xml).NFe.infNFe.dest.enderDest.xBairro,
-    l: __privateGet(this, _pdfWidth) * 0.472,
-    t: 39,
-    w: __privateGet(this, _pdfWidth) * 0.2,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.675, t: 27.5, w: __privateGet(this, _pdfWidth) * 0.16, h: 19 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "CEP",
-    l: __privateGet(this, _pdfWidth) * 0.677,
-    t: 29
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: __privateGet(this, _xml).NFe.infNFe.dest.enderDest.CEP,
-    l: __privateGet(this, _pdfWidth) * 0.677,
-    t: 39,
-    w: __privateGet(this, _pdfWidth) * 0.16,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.835, t: 27.5, w: __privateGet(this, _pdfWidth) * 0.225, h: 19 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "DATA DA SA\xCDDA/ENTRADA",
-    l: __privateGet(this, _pdfWidth) * 0.837,
-    t: 29
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: __privateMethod(this, _danfe_instances, formtPTBR_fn).call(this, __privateGet(this, _xml).NFe.infNFe.ide.dhEmi).split(" ")[0],
-    l: __privateGet(this, _pdfWidth) * 0.837,
-    t: 39,
-    w: __privateGet(this, _pdfWidth) * 0.16,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: 0, t: 46.5, w: __privateGet(this, _pdfWidth) * 0.47, h: 19 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "MUNICIPIO",
-    l: 2,
-    t: 48.5
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "left",
-    txt: __privateGet(this, _xml).NFe.infNFe.dest.enderDest.xMun,
-    l: 2,
-    t: 58.5,
-    w: __privateGet(this, _pdfWidth) * 0.45,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.47, t: 46.5, w: __privateGet(this, _pdfWidth) * 0.04, h: 19 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "UF",
-    l: __privateGet(this, _pdfWidth) * 0.472,
-    t: 48.5
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: __privateGet(this, _xml).NFe.infNFe.dest.enderDest.UF,
-    l: __privateGet(this, _pdfWidth) * 0.47,
-    t: 58.5,
-    w: __privateGet(this, _pdfWidth) * 0.04,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.51, t: 46.5, w: __privateGet(this, _pdfWidth) * 0.165, h: 19 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "FONE / FAX",
-    l: __privateGet(this, _pdfWidth) * 0.512,
-    t: 48.5
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: __privateGet(this, _xml).NFe.infNFe.dest.enderDest.fone || "",
-    l: __privateGet(this, _pdfWidth) * 0.512,
-    t: 58.5,
-    w: __privateGet(this, _pdfWidth) * 0.165,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.675, t: 46.5, w: __privateGet(this, _pdfWidth) * 0.16, h: 19 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "INSCRI\xC7\xC3O ESTADUAL",
-    l: __privateGet(this, _pdfWidth) * 0.677,
-    t: 48.5
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: __privateGet(this, _xml).NFe.infNFe.dest.IE || "",
-    l: __privateGet(this, _pdfWidth) * 0.677,
-    t: 58.5,
-    w: __privateGet(this, _pdfWidth) * 0.16,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.835, t: 46.5, w: __privateGet(this, _pdfWidth) * 0.1565, h: 19 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "HORA DA SA\xCDDA/ENTRADA",
-    l: __privateGet(this, _pdfWidth) * 0.834,
-    t: 48.5
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: __privateMethod(this, _danfe_instances, formtPTBR_fn).call(this, __privateGet(this, _xml).NFe.infNFe.ide.dhEmi).split(" ")[1],
-    l: __privateGet(this, _pdfWidth) * 0.834,
-    t: 58.5,
-    w: __privateGet(this, _pdfWidth) * 0.1565,
-    size: 9
-  });
-  __privateSet(this, _mtIndex, __privateGet(this, _mtIndex) + 69);
-};
-bloco3_fn = function(leftM = 2, addDesc = true) {
-  if (addDesc) {
-    __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-      font: "bold",
-      aling: "left",
-      txt: "PAGAMENTO",
-      l: 0,
-      t: 1,
-      size: 8
-    });
-  }
-  const pagamentos = __privateGet(this, _xml)?.NFe?.infNFe?.pag?.detPag ?? [];
-  const detPag = Array.isArray(pagamentos) ? pagamentos : [pagamentos];
-  let top = 8;
-  for (const pag of detPag) {
-    const formaPagamento = __privateMethod(this, _danfe_instances, traduzirFormaPagamento_fn).call(this, pag.tPag);
-    const valorPagamento = parseFloat(pag.vPag).toLocaleString("pt-BR", {
-      style: "currency",
-      currency: "BRL"
-    });
-    __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: leftM, t: top, w: __privateGet(this, _pdfWidth) * 0.25, h: 19 });
-    __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-      aling: "left",
-      txt: "Forma:",
-      l: leftM,
-      t: top + 1
-    });
-    __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-      aling: "right",
-      txt: formaPagamento,
-      l: leftM,
-      t: top + 1,
-      w: __privateGet(this, _pdfWidth) * 0.24,
-      size: 9
-    });
-    __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-      aling: "left",
-      txt: "Valor:",
-      l: leftM,
-      t: top + 10,
-      w: __privateGet(this, _pdfWidth) * 0.25,
-      size: 9
-    });
-    __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-      aling: "right",
-      txt: valorPagamento,
-      l: leftM,
-      t: top + 10,
-      w: __privateGet(this, _pdfWidth) * 0.24,
-      size: 9
-    });
-    top += 30;
-  }
-  __privateSet(this, _mtIndex, __privateGet(this, _mtIndex) + top);
-};
-traduzirFormaPagamento_fn = function(tPag) {
-  const formasPagamento = {
-    "01": "Dinheiro",
-    "02": "Cheque",
-    "03": "Cart\xE3o Cr\xE9dito",
-    "04": "Cart\xE3o D\xE9bito",
-    "05": "Cr\xE9dito Loja",
-    "10": "Vale Alimenta\xE7\xE3o",
-    "11": "Vale Refei\xE7\xE3o",
-    "12": "Vale Presente",
-    "13": "Vale Combust\xEDvel",
-    "14": "Duplicata",
-    "15": "Boleto",
-    "16": "Dep\xF3sito",
-    "17": "PIX Din\xE2mico",
-    "18": "Transfer\xEAncia",
-    "19": "Fidelidade",
-    "20": "PIX Est\xE1tico",
-    "21": "Cr\xE9dito Loja",
-    "22": "Falha Eletr\xF4nico",
-    "90": "Sem Pagamento",
-    "99": "Outros"
-  };
-  return formasPagamento[tPag] || "Desconhecido";
-};
-bloco4_fn = function() {
-  const ICMS = {
-    vBC: "Base Calc. ICMS",
-    vICMS: "Valor ICMS",
-    vICMSDeson: "ICMS Desonerado",
-    vFCP: "Valor FCP",
-    vBCST: "Base Calc. ICMS ST",
-    vST: "ICMS Subst. Trib.",
-    vFCPST: "Valor FCP ST",
-    vFCPSTRet: "FCP Retido ST",
-    vProd: "Valor Produtos",
-    vFrete: "Valor Frete",
-    vSeg: "Valor Seguro",
-    vDesc: "Valor Desconto",
-    vII: "Valor Imp. Import.",
-    vIPI: "Valor IPI",
-    vIPIDevol: "IPI Devolvido",
-    vPIS: "Valor PIS",
-    vCOFINS: "Valor COFINS",
-    vOutro: "Outras Desp. Acess.",
-    vNF: "Valor Total NF-e"
-  };
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "left",
-    txt: " C\xC1LCULO DO IMPOSTO",
-    l: 0,
-    t: 1,
-    size: 8
-  });
-  let top = 0, left = 0;
-  Object.keys(ICMS).forEach((key, index) => {
-    __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: 0 + left, t: 8 + top, w: __privateGet(this, _pdfWidth) * 0.11, h: 19 });
-    __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-      aling: "left",
-      txt: ICMS[key],
-      l: 2 + left,
-      t: 9 + top,
-      w: __privateGet(this, _pdfWidth) * 0.11
-    });
-    __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-      font: "bold",
-      aling: "right",
-      txt: `R$ ${__privateGet(this, _xml).NFe.infNFe.total.ICMSTot[key]}`,
-      l: 0 + left,
-      t: 19 + top,
-      w: (__privateGet(this, _pdfWidth) - __privateGet(this, _pdfMargin)) * 0.105 - (left > 0 ? 0 : 5),
-      size: 9
-    });
-    left += __privateGet(this, _pdfWidth) * 0.11;
-    if ((1 + index) % 9 === 0) {
-      top += 19;
-      left = 0;
+    if (line.trim() !== "") {
+      lines.push(line.trim());
     }
-  });
-  __privateSet(this, _mtIndex, __privateGet(this, _mtIndex) + (30 + top));
-};
-traduzirTipoFrete_fn = function(codigo) {
-  const tiposFrete = {
-    "0": "Frete por Conta do Remetente (CIF)",
-    "1": "Frete por Conta do Destinat\xE1rio (FOB)",
-    "2": "Frete por Conta de Terceiros",
-    "3": "Transporte Pr\xF3prio Remetente",
-    "4": "Transporte Pr\xF3prio Destinat\xE1rio",
-    "9": "Sem Transporte"
-  };
-  return tiposFrete[String(codigo)] ?? "Tipo de Frete Desconhecido";
-};
-bloco5_fn = function() {
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "left",
-    txt: "TRANSPORTADOR / VOLUMES TRANSPORTADOS",
-    l: 0,
-    t: 1,
-    size: 8
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: 0, t: 8, w: __privateGet(this, _pdfWidth) * 0.29, h: 19 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "NOME / RAZ\xC3O SOCIAL",
-    l: 2,
-    t: 9
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: __privateGet(this, _xml).NFe.infNFe.transp.CPF || __privateGet(this, _xml).NFe.infNFe.transp.CNPJ || "",
-    l: 2,
-    t: 19,
-    w: __privateGet(this, _pdfWidth) * 0.29,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.29, t: 8, w: __privateGet(this, _pdfWidth) * 0.15, h: 19 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "FRETE",
-    l: __privateGet(this, _pdfWidth) * 0.293,
-    t: 9
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: `${__privateGet(this, _xml).NFe.infNFe.transp.modFrete} - ${__privateMethod(this, _danfe_instances, traduzirTipoFrete_fn).call(this, __privateGet(this, _xml).NFe.infNFe.transp.modFrete)}`,
-    l: __privateGet(this, _pdfWidth) * 0.293,
-    t: 19,
-    w: __privateGet(this, _pdfWidth) * 0.15,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.44, t: 8, w: __privateGet(this, _pdfWidth) * 0.15, h: 19 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "C\xD3DIGO ANTT",
-    l: __privateGet(this, _pdfWidth) * 0.442,
-    t: 9
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: __privateGet(this, _xml).NFe.infNFe.transp?.veicTransp?.RNTC || "",
-    l: __privateGet(this, _pdfWidth) * 0.44,
-    t: 19,
-    w: __privateGet(this, _pdfWidth) * 0.15,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.59, t: 8, w: __privateGet(this, _pdfWidth) * 0.15, h: 19 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "PLACA DO VE\xCDCULO",
-    l: __privateGet(this, _pdfWidth) * 0.592,
-    t: 9
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: __privateGet(this, _xml).NFe.infNFe.transp?.veicTransp?.placa || "",
-    l: __privateGet(this, _pdfWidth) * 0.59,
-    t: 19,
-    w: __privateGet(this, _pdfWidth) * 0.15,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.74, t: 8, w: __privateGet(this, _pdfWidth) * 0.04, h: 19 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "UF",
-    l: __privateGet(this, _pdfWidth) * 0.742,
-    t: 9
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: __privateGet(this, _xml).NFe.infNFe.transp?.veicTransp?.UF || "",
-    l: __privateGet(this, _pdfWidth) * 0.742,
-    t: 19,
-    w: __privateGet(this, _pdfWidth) * 0.04,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.78, t: 8, w: __privateGet(this, _pdfWidth) * 0.22, h: 19 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "CNPJ / CPF",
-    l: __privateGet(this, _pdfWidth) * 0.782,
-    t: 9
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: __privateGet(this, _xml).NFe.infNFe.transp?.transporta?.CNPJ || __privateGet(this, _xml).NFe.infNFe.transp?.transporta?.CPF || "",
-    l: __privateGet(this, _pdfWidth) * 0.78,
-    t: 19,
-    w: __privateGet(this, _pdfWidth) * 0.22,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: 0, t: 27, w: __privateGet(this, _pdfWidth) * 0.44, h: 19 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "ENDERE\xC7O",
-    l: 2,
-    t: 28
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: __privateGet(this, _xml).NFe.infNFe.transp?.transporta?.xEnder || "",
-    l: 2,
-    t: 38,
-    w: __privateGet(this, _pdfWidth) * 0.44,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.44, t: 27, w: __privateGet(this, _pdfWidth) * 0.3, h: 19 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "MUNIC\xCDPIO",
-    l: __privateGet(this, _pdfWidth) * 0.442,
-    t: 28
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: __privateGet(this, _xml).NFe.infNFe.transp?.transporta?.xMun || "",
-    l: __privateGet(this, _pdfWidth) * 0.44,
-    t: 38,
-    w: __privateGet(this, _pdfWidth) * 0.3,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.74, t: 27, w: __privateGet(this, _pdfWidth) * 0.04, h: 19 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "UF",
-    l: __privateGet(this, _pdfWidth) * 0.742,
-    t: 28
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: __privateGet(this, _xml).NFe.infNFe.transp?.transporta?.UF || "",
-    l: __privateGet(this, _pdfWidth) * 0.742,
-    t: 38,
-    w: __privateGet(this, _pdfWidth) * 0.04,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.78, t: 27, w: __privateGet(this, _pdfWidth) * 0.22, h: 19 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: " INSCRI\xC7\xC3O ESTADUAL",
-    l: __privateGet(this, _pdfWidth) * 0.782,
-    t: 28
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: __privateGet(this, _xml).NFe.infNFe.transp?.transporta?.IE || "",
-    l: __privateGet(this, _pdfWidth) * 0.78,
-    t: 38,
-    w: __privateGet(this, _pdfWidth) * 0.22,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: 0, t: 46, w: __privateGet(this, _pdfWidth) * 0.11, h: 19 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "QUANTIDADE",
-    l: 2,
-    t: 47
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: __privateGet(this, _xml).NFe.infNFe.transp?.vol?.qVol || "",
-    l: 2,
-    t: 57,
-    w: __privateGet(this, _pdfWidth) * 0.11,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.11, t: 46, w: __privateGet(this, _pdfWidth) * 0.17, h: 19 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "ESP\xC9CIE",
-    l: __privateGet(this, _pdfWidth) * 0.112,
-    t: 47
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: __privateGet(this, _xml).NFe.infNFe.transp?.vol?.esp || "",
-    l: __privateGet(this, _pdfWidth) * 0.112,
-    t: 57,
-    w: __privateGet(this, _pdfWidth) * 0.17,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.28, t: 46, w: __privateGet(this, _pdfWidth) * 0.16, h: 19 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "MARCA",
-    l: __privateGet(this, _pdfWidth) * 0.282,
-    t: 47
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: __privateGet(this, _xml).NFe.infNFe.transp?.vol?.marca || "",
-    l: __privateGet(this, _pdfWidth) * 0.28,
-    t: 57,
-    w: __privateGet(this, _pdfWidth) * 0.16,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.44, t: 46, w: __privateGet(this, _pdfWidth) * 0.17, h: 19 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "NUMERA\xC7\xC3O",
-    l: __privateGet(this, _pdfWidth) * 0.442,
-    t: 47
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: __privateGet(this, _xml).NFe.infNFe.transp?.vol?.nVol || "",
-    l: __privateGet(this, _pdfWidth) * 0.44,
-    t: 57,
-    w: __privateGet(this, _pdfWidth) * 0.16,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.61, t: 46, w: __privateGet(this, _pdfWidth) * 0.19, h: 19 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "PESO BRUTO",
-    l: __privateGet(this, _pdfWidth) * 0.612,
-    t: 47
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: __privateGet(this, _xml).NFe.infNFe.transp?.vol?.pesoB || "",
-    l: __privateGet(this, _pdfWidth) * 0.61,
-    t: 57,
-    w: __privateGet(this, _pdfWidth) * 0.16,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.8, t: 46, w: __privateGet(this, _pdfWidth) * 0.2, h: 19 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "PESO L\xCDQUIDO",
-    l: __privateGet(this, _pdfWidth) * 0.802,
-    t: 47
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: __privateGet(this, _xml).NFe.infNFe.transp?.vol?.pesoL || "",
-    l: __privateGet(this, _pdfWidth) * 0.8,
-    t: 57,
-    w: __privateGet(this, _pdfWidth) * 0.2,
-    size: 9
-  });
-  __privateSet(this, _mtIndex, __privateGet(this, _mtIndex) + 68);
-};
-bloco6_fn = function() {
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "left",
-    txt: "DADOS DOS PRODUTOS / SERVI\xC7OS",
-    l: 0,
-    t: 1,
-    size: 8
-  });
-  let tabH = 0;
-  if (__privateGet(this, _pagQtd) <= 1) {
-    tabH = 10 + __privateGet(this, _pdfHeight) - __privateGet(this, _mtIndex) - 75;
-  } else {
-    tabH = 10 + __privateGet(this, _pdfHeight) - __privateGet(this, _mtIndex);
+    return lines;
   }
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: 0, t: 9, w: __privateGet(this, _pdfWidth), h: tabH });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "center",
-    txt: "C\xD3D. PRODUTO",
-    l: 0,
-    t: 15,
-    w: __privateGet(this, _pdfWidth) * 0.1
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "center",
-    txt: "DESCRI\xC7\xC3O DO PRODUTO / SERVI\xC7O",
-    l: __privateGet(this, _pdfWidth) * 0.1,
-    t: 15,
-    w: __privateGet(this, _pdfWidth) * 0.25
-  });
-  __privateMethod(this, _danfe_instances, addLinhaVT_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.1, ts: 15, te: tabH + 15 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "center",
-    txt: "NCM/SH",
-    l: __privateGet(this, _pdfWidth) * 0.35,
-    t: 15,
-    w: __privateGet(this, _pdfWidth) * 0.05
-  });
-  __privateMethod(this, _danfe_instances, addLinhaVT_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.35, ts: 15, te: tabH + 15 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "center",
-    txt: "O/CSOSN",
-    l: __privateGet(this, _pdfWidth) * 0.4,
-    t: 15,
-    w: __privateGet(this, _pdfWidth) * 0.05
-  });
-  __privateMethod(this, _danfe_instances, addLinhaVT_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.4, ts: 15, te: tabH + 15 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "center",
-    txt: "CFOP",
-    l: __privateGet(this, _pdfWidth) * 0.45,
-    t: 15,
-    w: __privateGet(this, _pdfWidth) * 0.04
-  });
-  __privateMethod(this, _danfe_instances, addLinhaVT_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.45, ts: 15, te: tabH + 15 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "center",
-    txt: "UN",
-    l: __privateGet(this, _pdfWidth) * 0.49,
-    t: 15,
-    w: __privateGet(this, _pdfWidth) * 0.03
-  });
-  __privateMethod(this, _danfe_instances, addLinhaVT_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.49, ts: 15, te: tabH + 15 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "center",
-    txt: "QUANT",
-    l: __privateGet(this, _pdfWidth) * 0.52,
-    t: 15,
-    w: __privateGet(this, _pdfWidth) * 0.07
-  });
-  __privateMethod(this, _danfe_instances, addLinhaVT_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.52, ts: 15, te: tabH + 15 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "center",
-    txt: "QUANT",
-    l: __privateGet(this, _pdfWidth) * 0.59,
-    t: 15,
-    w: __privateGet(this, _pdfWidth) * 0.06
-  });
-  __privateMethod(this, _danfe_instances, addLinhaVT_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.59, ts: 15, te: tabH + 15 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "center",
-    txt: "V. TOTAL",
-    l: __privateGet(this, _pdfWidth) * 0.65,
-    t: 15,
-    w: __privateGet(this, _pdfWidth) * 0.06
-  });
-  __privateMethod(this, _danfe_instances, addLinhaVT_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.65, ts: 15, te: tabH + 15 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "center",
-    txt: "V. DESC.",
-    l: __privateGet(this, _pdfWidth) * 0.71,
-    t: 15,
-    w: __privateGet(this, _pdfWidth) * 0.06
-  });
-  __privateMethod(this, _danfe_instances, addLinhaVT_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.71, ts: 15, te: tabH + 15 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "center",
-    txt: "B.C\xC1LC ICMS",
-    l: __privateGet(this, _pdfWidth) * 0.77,
-    t: 15,
-    w: __privateGet(this, _pdfWidth) * 0.04
-  });
-  __privateMethod(this, _danfe_instances, addLinhaVT_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.77, ts: 15, te: tabH + 15 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "center",
-    txt: "V. ICMS",
-    l: __privateGet(this, _pdfWidth) * 0.81,
-    t: 15,
-    w: __privateGet(this, _pdfWidth) * 0.06
-  });
-  __privateMethod(this, _danfe_instances, addLinhaVT_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.81, ts: 15, te: tabH + 15 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "center",
-    txt: "V. IPI",
-    l: __privateGet(this, _pdfWidth) * 0.87,
-    t: 15,
-    w: __privateGet(this, _pdfWidth) * 0.04
-  });
-  __privateMethod(this, _danfe_instances, addLinhaVT_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.87, ts: 15, te: tabH + 15 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "center",
-    txt: "ALIQ. ICM",
-    l: __privateGet(this, _pdfWidth) * 0.91,
-    t: 15,
-    w: __privateGet(this, _pdfWidth) * 0.04
-  });
-  __privateMethod(this, _danfe_instances, addLinhaVT_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.91, ts: 15, te: tabH + 15 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "center",
-    txt: "ALIQ. ICM",
-    l: __privateGet(this, _pdfWidth) * 0.95,
-    t: 15,
-    w: __privateGet(this, _pdfWidth) * 0.04
-  });
-  __privateMethod(this, _danfe_instances, addLinhaVT_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.95, ts: 15, te: tabH + 15 });
-  __privateMethod(this, _danfe_instances, addLinhaHT_fn).call(this, { t: 32, ls: 0, le: __privateGet(this, _pdfWidth) });
-  let produtos = Array.isArray(__privateGet(this, _xml).NFe.infNFe.det) ? __privateGet(this, _xml).NFe.infNFe.det : [{ prod: __privateGet(this, _xml).NFe.infNFe.det.prod }];
-  let nextProd = 30;
-  produtos.forEach((el) => {
-    const prod = el.prod;
-    const imposto = el.imposto || {};
-    const csosn = imposto.ICMS?.CSOSN || imposto.ICMS?.CST || "";
-    const baseICMS = imposto.ICMS?.vBC ?? "0.00";
-    const valorICMS = imposto.ICMS?.vICMS ?? "0.00";
-    const valorIPI = imposto.IPI?.IPITrib?.vIPI ?? "0.00";
-    const aliqICMS = imposto.ICMS?.pICMS ?? "0.00";
-    const aliqIPI = imposto.IPI?.IPITrib?.pIPI ?? "0.00";
-    const desconto = prod.vDesc ?? "0.00";
-    const nLinha = prod.xProd.length <= 38 ? 1 : Math.ceil((prod.xProd.length - 38) / 18);
-    __privateMethod(this, _danfe_instances, addTXT_fn).call(this, { aling: "center", txt: prod.cEAN ?? "", l: 0, t: nextProd + (nLinha - 1) * 4, w: __privateGet(this, _pdfWidth) * 0.1 });
-    __privateMethod(this, _danfe_instances, addTXT_fn).call(this, { aling: "left", txt: prod.xProd ?? "", l: __privateGet(this, _pdfWidth) * 0.106, t: nextProd, w: __privateGet(this, _pdfWidth) * 0.25 });
-    __privateMethod(this, _danfe_instances, addTXT_fn).call(this, { aling: "center", txt: prod.NCM ?? "", l: __privateGet(this, _pdfWidth) * 0.35, t: nextProd + (nLinha - 1) * 4, w: __privateGet(this, _pdfWidth) * 0.05 });
-    __privateMethod(this, _danfe_instances, addTXT_fn).call(this, { aling: "center", txt: csosn, l: __privateGet(this, _pdfWidth) * 0.4, t: nextProd + (nLinha - 1) * 4, w: __privateGet(this, _pdfWidth) * 0.05 });
-    __privateMethod(this, _danfe_instances, addTXT_fn).call(this, { aling: "center", txt: prod.CFOP ?? "", l: __privateGet(this, _pdfWidth) * 0.45, t: nextProd + (nLinha - 1) * 4, w: __privateGet(this, _pdfWidth) * 0.04 });
-    __privateMethod(this, _danfe_instances, addTXT_fn).call(this, { aling: "center", txt: prod.uCom ?? "", l: __privateGet(this, _pdfWidth) * 0.49, t: nextProd + (nLinha - 1) * 4, w: __privateGet(this, _pdfWidth) * 0.03 });
-    __privateMethod(this, _danfe_instances, addTXT_fn).call(this, { aling: "center", txt: prod.qCom ?? "", l: __privateGet(this, _pdfWidth) * 0.52, t: nextProd + (nLinha - 1) * 4, w: __privateGet(this, _pdfWidth) * 0.07 });
-    __privateMethod(this, _danfe_instances, addTXT_fn).call(this, { aling: "center", txt: (parseFloat(prod.vUnCom) || 0).toFixed(2), l: __privateGet(this, _pdfWidth) * 0.59, t: nextProd + (nLinha - 1) * 4, w: __privateGet(this, _pdfWidth) * 0.06 });
-    __privateMethod(this, _danfe_instances, addTXT_fn).call(this, { aling: "center", txt: (parseFloat(prod.vProd) || 0).toFixed(2), l: __privateGet(this, _pdfWidth) * 0.65, t: nextProd + (nLinha - 1) * 4, w: __privateGet(this, _pdfWidth) * 0.06 });
-    __privateMethod(this, _danfe_instances, addTXT_fn).call(this, { aling: "center", txt: (parseFloat(desconto) || 0).toFixed(2), l: __privateGet(this, _pdfWidth) * 0.71, t: nextProd + (nLinha - 1) * 4, w: __privateGet(this, _pdfWidth) * 0.06 });
-    __privateMethod(this, _danfe_instances, addTXT_fn).call(this, { aling: "center", txt: (parseFloat(baseICMS) || 0).toFixed(2), l: __privateGet(this, _pdfWidth) * 0.77, t: nextProd + (nLinha - 1) * 4, w: __privateGet(this, _pdfWidth) * 0.04 });
-    __privateMethod(this, _danfe_instances, addTXT_fn).call(this, { aling: "center", txt: (parseFloat(valorICMS) || 0).toFixed(2), l: __privateGet(this, _pdfWidth) * 0.81, t: nextProd + (nLinha - 1) * 4, w: __privateGet(this, _pdfWidth) * 0.06 });
-    __privateMethod(this, _danfe_instances, addTXT_fn).call(this, { aling: "center", txt: (parseFloat(valorIPI) || 0).toFixed(2), l: __privateGet(this, _pdfWidth) * 0.87, t: nextProd + (nLinha - 1) * 4, w: __privateGet(this, _pdfWidth) * 0.04 });
-    __privateMethod(this, _danfe_instances, addTXT_fn).call(this, { aling: "center", txt: (parseFloat(aliqICMS) || 0).toFixed(2) + "%", l: __privateGet(this, _pdfWidth) * 0.91, t: nextProd + (nLinha - 1) * 4, w: __privateGet(this, _pdfWidth) * 0.04 });
-    __privateMethod(this, _danfe_instances, addTXT_fn).call(this, { aling: "center", txt: (parseFloat(aliqIPI) || 0).toFixed(2) + "%", l: __privateGet(this, _pdfWidth) * 0.95, t: nextProd + (nLinha - 1) * 4, w: __privateGet(this, _pdfWidth) * 0.04 });
-    nextProd += 8 * nLinha;
-  });
-  __privateSet(this, _mtIndex, __privateGet(this, _mtIndex) + (tabH + 12));
-  console.log(__privateGet(this, _mtIndex));
-  __privateMethod(this, _danfe_instances, bloco7_fn).call(this);
-};
-//Limite maximo 787
-bloco7_fn = function() {
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "left",
-    txt: "DADOS ADICIONAIS",
-    l: 0,
-    t: 1,
-    size: 8
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: 0, t: 9, w: __privateGet(this, _pdfWidth) * 0.65, h: 28 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "INFORMA\xC7\xD5ES COMPLEMENTARES",
-    l: 2,
-    t: 11
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: __privateGet(this, _xml).NFe.infNFe.infAdic?.infCpl,
-    l: 0,
-    t: 9,
-    w: __privateGet(this, _pdfWidth) * 0.2,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addRetangulo_fn).call(this, { l: __privateGet(this, _pdfWidth) * 0.65, t: 9, w: __privateGet(this, _pdfWidth) * 0.36, h: 28 });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "PESO L\xCDQUIDO",
-    l: __privateGet(this, _pdfWidth) * 0.652,
-    t: 11
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    font: "bold",
-    aling: "center",
-    txt: __privateGet(this, _xml).NFe.infNFe.transp?.vol?.pesoL,
-    l: __privateGet(this, _pdfWidth) * 0.65,
-    t: 9,
-    w: __privateGet(this, _pdfWidth) * 0.36,
-    size: 9
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "left",
-    txt: "Impresso em 19/02/2025 as 08:58:52",
-    l: 0,
-    t: 39
-  });
-  __privateMethod(this, _danfe_instances, addTXT_fn).call(this, {
-    aling: "right",
-    txt: "Gerado em www.fsist.com.br",
-    l: 0,
-    t: 39,
-    w: __privateGet(this, _pdfWidth) - __privateGet(this, _pdfMargin) * 2
-  });
-};
-_pdfWidth = new WeakMap();
-_pdfHeight = new WeakMap();
-_pdfMargin = new WeakMap();
-_pdfOpc = new WeakMap();
-_mtIndex = new WeakMap();
-_pagIndex = new WeakMap();
-_pagQtd = new WeakMap();
-base64IMG_fn = function() {
-  return new Promise((resolve, reject) => {
-    if (__privateGet(this, _logo) != null) {
-      if (__privateGet(this, _isBrowser)) {
-        if (__privateGet(this, _logo)) {
-          fetch(__privateGet(this, _logo)).then((response) => response.blob()).then((blob) => __privateMethod(this, _danfe_instances, blob2base64_fn).call(this, blob)).catch(reject);
-        } else {
-          reject(new Error("Logo n\xE3o foi definido."));
-        }
-      } else {
-        reject(new Error("M\xE9todo n\xE3o suportado no ambiente Node.js"));
-      }
+  async function gerarBlocos() {
+    await bloco0();
+    await bloco1();
+    await bloco2();
+    await bloco3();
+    await bloco4();
+    await bloco5();
+    let fim = await bloco6();
+    await bloco7();
+    await bloco8();
+    if (imgDemo != null) await blocoDEMO();
+    while (!fim) {
+      PDF.mtBlock = 0;
+      PDF.pages.push(PDF.doc.addPage());
+      await bloco1();
+      fim = await bloco6();
+    }
+    for (const [i, page] of PDF.pages.entries()) {
+      addTXT({ page, size: 8, text: `Folha ${i + 1}/${PDF.pages.length}`, x: 235, y: i == 0 ? 142 : 82, maxWidth: PDF.width * 0.19, align: "center", fontStyle: "italic" });
+    }
+  }
+  async function bloco0(page = PDF.pages[PDF.pages.length - 1]) {
+    addRet(page, 0, PDF.mtBlock + 0, PDF.width, 50);
+    addRet(page, 0, PDF.mtBlock + 0, PDF.width * 0.8, 25);
+    addRet(page, 0, PDF.mtBlock + 0, PDF.width * 0.8, 25);
+    addRet(page, 0, PDF.mtBlock + 25, PDF.width * 0.8, 25);
+    addRet(page, PDF.width * 0.17, PDF.mtBlock + 25, PDF.width * 0.63, 25);
+    addTXT({ page, text: `RECEBEMOS DE ${xml.NFe.infNFe.emit.xNome} OS PRODUTOS E/OU SERVI\xC7OS CONSTANTES DA NOTA FISCAL ELETR\xD4NICA INDICADA ABAIXO. EMISS\xC3O: ${new Date(xml.NFe.infNFe.ide.dhEmi).toLocaleDateString("pt-BR")} VALOR TOTAL: ${parseFloat(xml.NFe.infNFe.total.ICMSTot.vNF).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} DESTINAT\xC1RIO: NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL - ${xml.NFe.infNFe.dest.enderDest.xLgr}, ${xml.NFe.infNFe.dest.enderDest.nro} ${xml.NFe.infNFe.dest.enderDest.xBairro} ${xml.NFe.infNFe.dest.enderDest.xMun}-${xml.NFe.infNFe.dest.enderDest.UF}`, x: 2, y: PDF.mtBlock + 2, maxWidth: PDF.width * 0.78 });
+    addTXT({ page, text: "DATA DE RECEBIMENTO", x: 2, y: PDF.mtBlock + 25, maxWidth: PDF.width * 0.78 });
+    addTXT({ page, text: "ASSINATURA DO RECEBEDOR", x: PDF.width * 0.173, y: PDF.mtBlock + 25, maxWidth: PDF.width });
+    addTXT({ page, size: 18, text: "NFe", x: PDF.width * 0.8, y: PDF.mtBlock, maxWidth: PDF.width * 0.8, align: "center", fontStyle: "negrito" });
+    addTXT({ page, size: 11, text: `N\xBA. ${xml.NFe.infNFe.ide.nNF.padStart(9, "0")}`, x: PDF.width * 0.8, y: PDF.mtBlock + 20, maxWidth: PDF.width * 0.8, align: "center", fontStyle: "negrito" });
+    addTXT({ page, size: 11, text: `S\xE9rie ${xml.NFe.infNFe.ide.serie.padStart(3, "0")}`, x: PDF.width * 0.8, y: PDF.mtBlock + 30, maxWidth: PDF.width * 0.8, align: "center", fontStyle: "negrito" });
+    addLTH(page, 0, PDF.mtBlock + 56, PDF.width);
+    PDF.mtBlock += 60;
+  }
+  async function bloco1(page = PDF.pages[PDF.pages.length - 1]) {
+    addRet(page, 0, PDF.mtBlock, PDF.width, 132);
+    addRet(page, 0, PDF.mtBlock, PDF.width, 92);
+    addRet(page, 0, PDF.mtBlock, PDF.width, 112);
+    addRet(page, PDF.width * 0.401, PDF.mtBlock + 0, PDF.width, 92);
+    addRet(page, PDF.width * 0.53, PDF.mtBlock + 38, 16, 20);
+    addRet(page, PDF.width * 0.57, PDF.mtBlock + 0, PDF.width, 47);
+    addRet(page, PDF.width * 0.57, PDF.mtBlock + 47, PDF.width, 23);
+    addRet(page, PDF.width * 0.57, PDF.mtBlock + 70, PDF.width, 22);
+    addRet(page, PDF.width * 0.57, PDF.mtBlock + 92, PDF.width, 20);
+    addRet(page, PDF.width * 0.745, PDF.mtBlock + 112, PDF.width, 20);
+    addRet(page, PDF.width * 0.497, PDF.mtBlock + 112, PDF.width, 20);
+    addRet(page, PDF.width * 0.25, PDF.mtBlock + 112, PDF.width, 20);
+    addTXT({ page, text: "IDENTIFICA\xC7\xC3O DO EMITENTE", x: 0, y: PDF.mtBlock + 2, maxWidth: PDF.width * 0.4, align: "center" });
+    let mt = 0;
+    if (typeof logo !== "undefined") {
+      await addIMG({ page, img: logo, x: PDF.width * 0.18, y: PDF.mtBlock + 14, h: 37, w: 37 });
+      mt += 12;
+    }
+    addTXT({ page, size: 12, text: `${xml.NFe.infNFe.emit.xNome}`, x: 1, y: PDF.mtBlock + 35 + mt, maxWidth: PDF.width * 0.4, align: "center", fontStyle: "negrito" });
+    addTXT({ page, size: 9, text: `${xml.NFe.infNFe.emit.enderEmit.xLgr}, N\xB0${xml.NFe.infNFe.emit.enderEmit.nro}`, x: 0, y: PDF.mtBlock + 45 + mt, maxWidth: PDF.width * 0.42, align: "center" });
+    addTXT({ page, size: 9, text: `${xml.NFe.infNFe.emit.enderEmit.xBairro} - ${xml.NFe.infNFe.emit.enderEmit.CEP}`, x: 0, y: PDF.mtBlock + 55 + mt, maxWidth: PDF.width * 0.42, align: "center" });
+    addTXT({ page, size: 9, text: `${xml.NFe.infNFe.emit.enderEmit.xMun} - ${xml.NFe.infNFe.emit.enderEmit.UF} Fone: ${xml.NFe.infNFe.emit.enderEmit.fone}`, x: 0, y: PDF.mtBlock + 65 + mt, maxWidth: PDF.width * 0.42, align: "center" });
+    addTXT({ page, size: 16, text: "DANFE", x: PDF.width * 0.393, y: PDF.mtBlock + 3, maxWidth: PDF.width * 0.2, align: "center", fontStyle: "negrito" });
+    addTXT({ page, size: 8, text: "Documento Auxiliar da Nota Fiscal Eletr\xF4nica", x: PDF.width * 0.4, y: PDF.mtBlock + 19, maxWidth: PDF.width * 0.18, align: "center" });
+    addTXT({ page, size: 8, text: "0 - ENTRADA", x: PDF.width * 0.415, y: PDF.mtBlock + 42, maxWidth: PDF.width * 0.19, align: "left" });
+    addTXT({ page, size: 8, text: "1 - SA\xCDDA", x: PDF.width * 0.415, y: PDF.mtBlock + 50, maxWidth: PDF.width * 0.19, align: "left" });
+    addTXT({ page, size: 20, text: xml.NFe.infNFe.ide.tpNF, x: PDF.width * 0.534, y: PDF.mtBlock + 37, maxWidth: PDF.width * 0.19, align: "left" });
+    addTXT({ page, size: 10, text: `N\xBA. ${xml.NFe.infNFe.ide.nNF.padStart(9, "0")}`, x: PDF.width * 0.4, y: PDF.mtBlock + 63, maxWidth: PDF.width * 0.19, align: "center", fontStyle: "negrito" });
+    addTXT({ page, size: 10, text: `S\xE9rie ${xml.NFe.infNFe.ide.serie.padStart(3, "0")}`, x: PDF.width * 0.398, y: PDF.mtBlock + 72, maxWidth: PDF.width * 0.19, align: "center", fontStyle: "negrito" });
+    await addIMG({ page, img: await barCode(), x: PDF.width * 0.595, y: PDF.mtBlock + 6, w: PDF.width * 0.39, h: 44 });
+    addTXT({ page, text: "CHAVE DE ACESSO", x: PDF.width * 0.575, y: PDF.mtBlock + 47, maxWidth: PDF.width * 0.19 });
+    addTXT({ page, size: 8, text: xml.NFe.infNFe["@Id"].replace("NFe", "").replace(/(\d{4})(?=\d)/g, "$1 "), x: PDF.width * 0.595, y: PDF.mtBlock + 58, maxWidth: PDF.width * 0.39, align: "center", fontStyle: "negrito" });
+    addTXT({ page, size: 8, text: "Consulta de autenticidade no portal nacional da NF-e", x: PDF.width * 0.595, y: PDF.mtBlock + 70, maxWidth: PDF.width * 0.39, align: "center" });
+    addTXT({ page, size: 8, text: " www.nfe.fazenda.gov.br/portal ou no site da Sefaz Autorizadora", x: PDF.width * 0.595, y: PDF.mtBlock + 81, maxWidth: PDF.width * 0.39, align: "center" });
+    addTXT({ page, text: "PROTOCOLO DE AUTORIZA\xC7\xC3O DE USO", x: PDF.width * 0.575, y: PDF.mtBlock + 92, maxWidth: PDF.width * 0.29 });
+    addTXT({ page, size: 10, text: `${xml.NFe?.protNFe?.infProt?.nProt || ""} - ${xml.NFe?.protNFe?.infProt?.dhRecbto ? new Date(xml.NFe.protNFe.infProt.dhRecbto).toLocaleString("pt-BR") : ""}`, x: PDF.width * 0.595, y: PDF.mtBlock + 101, maxWidth: PDF.width * 0.39, align: "center", fontStyle: "negrito" });
+    addTXT({ page, text: "NATUREZA DA OPERA\xC7\xC3O", x: 3, y: PDF.mtBlock + 92, maxWidth: PDF.width * 0.29 });
+    addTXT({ page, size: 10, text: xml.NFe.infNFe.ide.natOp, x: 3, y: PDF.mtBlock + 101, maxWidth: PDF.width * 0.58, align: "center", fontStyle: "negrito" });
+    addTXT({ page, text: "INSCRI\xC7\xC3O ESTADUAL", x: 3, y: PDF.mtBlock + 112, maxWidth: PDF.width * 0.29 });
+    addTXT({ page, size: 10, text: xml.NFe.infNFe.emit.IE || "", x: 3, y: PDF.mtBlock + 121, maxWidth: PDF.width * 0.25, align: "center", fontStyle: "negrito" });
+    addTXT({ page, text: "INSCRI\xC7\xC3O MUNICIPAL", x: PDF.width * 0.255, y: PDF.mtBlock + 112, maxWidth: PDF.width * 0.29 });
+    addTXT({ page, size: 10, text: xml.NFe.infNFe.emit.IM || "", x: PDF.width * 0.355, y: PDF.mtBlock + 121, maxWidth: PDF.width * 0.05, align: "center", fontStyle: "negrito" });
+    addTXT({ page, text: "INSCRI\xC7\xC3O ESTADUAL DO SUBST. TRIBUT.", x: PDF.width * 0.5, y: PDF.mtBlock + 112, maxWidth: PDF.width * 0.29 });
+    addTXT({ page, size: 10, text: xml.NFe.infNFe.emit.IEST || "", x: PDF.width * 0.6, y: PDF.mtBlock + 121, maxWidth: PDF.width * 0.05, align: "center", fontStyle: "negrito" });
+    addTXT({ page, text: "CNPJ/CPF", x: PDF.width * 0.75, y: PDF.mtBlock + 112, maxWidth: PDF.width * 0.29 });
+    addTXT({ page, size: 10, text: xml.NFe.infNFe.emit.CNPJ, x: PDF.width * 0.845, y: PDF.mtBlock + 121, maxWidth: PDF.width * 0.05, align: "center", fontStyle: "negrito" });
+    PDF.mtBlock += 133;
+  }
+  async function barCode() {
+    if (PDF.barCode != null) return PDF.barCode;
+    const isNode = typeof window === "undefined";
+    if (isNode) {
+      const { createCanvas } = await import("canvas");
+      const canvas = createCanvas(400, 100);
+      JsBarcode(canvas, xml.NFe.infNFe["@Id"], {
+        format: "CODE128",
+        displayValue: false,
+        fontSize: 18
+      });
+      PDF.barCode = canvas.toDataURL("image/png");
+      return PDF.barCode;
     } else {
-      resolve(false);
+      return new Promise((resolve, reject) => {
+        try {
+          const canvas = document.createElement("canvas");
+          JsBarcode(canvas, xml.NFe.infNFe["@Id"], {
+            format: "CODE128",
+            displayValue: false,
+            fontSize: 18
+          });
+          PDF.barCode = canvas.toDataURL("image/png");
+          resolve(PDF.barCode);
+        } catch (err) {
+          reject(err);
+        }
+      });
     }
-  });
-};
-addBase64IMG_fn = function(data = { l: 0, t: 0, w: 0, h: 0, base64: "" }, mtIndex = __privateGet(this, _mtIndex)) {
-  __privateGet(this, _pdf).image(
-    data.base64,
-    data.l <= __privateGet(this, _pdfMargin) ? __privateGet(this, _pdfMargin) + data.l : data.l,
-    (data.t <= __privateGet(this, _pdfMargin) ? data.t + __privateGet(this, _pdfMargin) : data.t + __privateGet(this, _pdfMargin)) + mtIndex,
-    { fit: [data.w, 50], align: "center", valign: "center" }
-  );
-};
-blob2base64_fn = function(blob) {
-  const reader = new FileReader();
-  reader.readAsDataURL(blob);
-  return new Promise((resolve) => {
-    reader.onloadend = () => {
-      resolve(reader.result);
+  }
+  async function bloco2(page = PDF.pages[PDF.pages.length - 1]) {
+    addRet(page, 0, PDF.mtBlock + 10, PDF.width * 0.603, 20);
+    addRet(page, PDF.width * 0.603, PDF.mtBlock + 10, PDF.width * 0.222, 20);
+    addRet(page, PDF.width * 0.825, PDF.mtBlock + 10, PDF.width * 0.2, 20);
+    addRet(page, PDF.width * 0.665, PDF.mtBlock + 30, PDF.width, 20);
+    addRet(page, PDF.width * 0.825, PDF.mtBlock + 50, PDF.width * 0.2, 20);
+    addRet(page, PDF.width * 0.665, PDF.mtBlock + 30, PDF.width * 0.16, 40);
+    addRet(page, PDF.width * 0.503, PDF.mtBlock + 50, PDF.width * 0.162, 20);
+    addRet(page, PDF.width * 0.465, PDF.mtBlock + 50, PDF.width * 0.038, 20);
+    addRet(page, PDF.width * 0, PDF.mtBlock + 50, PDF.width * 0.465, 20);
+    addRet(page, PDF.width * 0, PDF.mtBlock + 30, PDF.width * 0.465, 20);
+    addTXT({ page, text: "DESTINAT\xC1RIO / REMETENTE", x: 3, y: PDF.mtBlock + 2, maxWidth: PDF.width * 0.4, fontStyle: "negrito" });
+    addTXT({ page, text: "NOME / RAZ\xC3O SOCIAL", x: 3, y: PDF.mtBlock + 10, maxWidth: PDF.width * 0.4 });
+    addTXT({ page, size: 9, text: xml.NFe.infNFe.dest.xNome, x: 3, y: PDF.mtBlock + 20, maxWidth: PDF.width * 0.42, fontStyle: "negrito" });
+    addTXT({ page, text: "CNPJ/CPF", x: PDF.width * 0.61, y: PDF.mtBlock + 10, maxWidth: PDF.width * 0.4 });
+    addTXT({ page, size: 9, text: xml.NFe.infNFe.dest.CNPJ || xml.NFe.infNFe.dest.CPF, x: PDF.width * 0.51, y: PDF.mtBlock + 20, maxWidth: PDF.width * 0.42, align: "center", fontStyle: "negrito" });
+    addTXT({ page, text: "DATA DA EMISS\xC3O", x: PDF.width * 0.83, y: PDF.mtBlock + 10, maxWidth: PDF.width * 0.4 });
+    addTXT({ page, size: 9, text: new Date(xml.NFe.infNFe.ide.dhEmi).toLocaleDateString("pt-BR"), x: PDF.width * 0.83, y: PDF.mtBlock + 20, maxWidth: PDF.width * 0.42, align: "center", fontStyle: "negrito" });
+    addTXT({ page, text: "ENDERE\xC7O", x: 2, y: PDF.mtBlock + 31, maxWidth: PDF.width * 0.4 });
+    addTXT({ page, size: 9, text: `${xml.NFe.infNFe.dest.enderDest.xLgr}, N\xB0 ${xml.NFe.infNFe.dest.enderDest.nro}`, x: 3, y: PDF.mtBlock + 40, maxWidth: PDF.width * 0.42, align: "left", fontStyle: "negrito" });
+    addTXT({ page, text: "BAIRRO/DISTRITO", x: PDF.width * 0.47, y: PDF.mtBlock + 31, maxWidth: PDF.width * 0.4 });
+    addTXT({ page, size: 9, text: xml.NFe.infNFe.dest.enderDest.xBairro, x: PDF.width * 0.47, y: PDF.mtBlock + 40, maxWidth: PDF.width * 0.21, align: "center", fontStyle: "negrito" });
+    addTXT({ page, text: "CEP", x: PDF.width * 0.67, y: PDF.mtBlock + 31, maxWidth: PDF.width * 0.4 });
+    addTXT({ page, size: 9, text: xml.NFe.infNFe.dest.enderDest.CEP.replace(/^(\d{5})(\d{3})$/, "$1-$2"), x: PDF.width * 0.67, y: PDF.mtBlock + 40, maxWidth: PDF.width * 0.17, align: "center", fontStyle: "negrito" });
+    addTXT({ page, text: "DATA DA SA\xCDDA/ENTRDA", x: PDF.width * 0.83, y: PDF.mtBlock + 31, maxWidth: PDF.width * 0.4 });
+    addTXT({ page, size: 9, text: new Date(xml.NFe.infNFe.ide.dhEmi).toLocaleDateString("pt-BR"), x: PDF.width * 0.83, y: PDF.mtBlock + 40, maxWidth: PDF.width * 0.17, align: "center", fontStyle: "negrito" });
+    addTXT({ page, text: "MUNICIPIO", x: 2, y: PDF.mtBlock + 50, maxWidth: PDF.width * 0.4 });
+    addTXT({ page, size: 9, text: xml.NFe.infNFe.dest.enderDest.xMun, x: 3, y: PDF.mtBlock + 60, maxWidth: PDF.width * 0.42, align: "left", fontStyle: "negrito" });
+    addTXT({ page, text: "UF", x: PDF.width * 0.47, y: PDF.mtBlock + 50, maxWidth: PDF.width * 0.4 });
+    addTXT({ page, size: 9, text: xml.NFe.infNFe.dest.enderDest.UF, x: PDF.width * 0.473, y: PDF.mtBlock + 60, maxWidth: PDF.width * 0.21, align: "left", fontStyle: "negrito" });
+    addTXT({ page, text: "FONE/FAX", x: PDF.width * 0.505, y: PDF.mtBlock + 50, maxWidth: PDF.width * 0.4 });
+    addTXT({ page, size: 9, text: xml.NFe.infNFe.dest.enderDest.fone || "", x: PDF.width * 0.505, y: PDF.mtBlock + 60, maxWidth: PDF.width * 0.17, align: "center", fontStyle: "negrito" });
+    addTXT({ page, text: "INSCRI\xC7\xC3O ESTADUAL", x: PDF.width * 0.67, y: PDF.mtBlock + 50, maxWidth: PDF.width * 0.4 });
+    addTXT({ page, size: 9, text: xml.NFe.infNFe.dest.IE || "", x: PDF.width * 0.67, y: PDF.mtBlock + 60, maxWidth: PDF.width * 0.17, align: "center", fontStyle: "negrito" });
+    addTXT({ page, text: "HORA DA SA\xCDDA/ENTRDA", x: PDF.width * 0.83, y: PDF.mtBlock + 50, maxWidth: PDF.width * 0.4 });
+    addTXT({ page, size: 9, text: new Date(xml.NFe.infNFe.ide.dhEmi).toLocaleTimeString("pt-BR"), x: PDF.width * 0.83, y: PDF.mtBlock + 60, maxWidth: PDF.width * 0.17, align: "center", fontStyle: "negrito" });
+    PDF.mtBlock += 73;
+  }
+  async function bloco3(page = PDF.pages[PDF.pages.length - 1]) {
+    addTXT({ page, text: "PAGAMENTO", x: 3, y: PDF.mtBlock, maxWidth: PDF.width * 0.25, fontStyle: "negrito" });
+    const pagamentos = Array.isArray(xml.NFe.infNFe.pag.detPag) ? xml.NFe.infNFe.pag.detPag : [xml.NFe.infNFe.pag.detPag];
+    const formaPagto = {
+      "01": "Dinheiro",
+      "02": "Cheque",
+      "03": "Cart\xE3o de Cr\xE9dito",
+      "04": "Cart\xE3o de D\xE9bito",
+      "05": "Cr\xE9dito Loja",
+      "10": "Vale Alimenta\xE7\xE3o",
+      "11": "Vale Refei\xE7\xE3o",
+      "12": "Vale Presente",
+      "13": "Vale Combust\xEDvel",
+      "15": "Boleto Banc\xE1rio",
+      "16": "Dep\xF3sito Banc\xE1rio",
+      "17": "PIX",
+      "18": "Transfer\xEAncia",
+      "19": "Fidelidade",
+      "90": "Sem pagamento",
+      "99": "Outros"
     };
+    let offset = 0;
+    for (const pag of pagamentos) {
+      const forma = formaPagto[pag.tPag] || `C\xF3digo ${pag.tPag}`;
+      const valor = parseFloat(pag.vPag).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+      addRet(page, 0, PDF.mtBlock + 7 + offset, PDF.width * 0.25, 20);
+      addTXT({ page, text: "FORMA", x: 3, y: PDF.mtBlock + 8 + offset, maxWidth: PDF.width * 0.25 });
+      addTXT({ page, text: forma, x: 3, y: PDF.mtBlock + 18 + offset, maxWidth: PDF.width * 0.25 });
+      addTXT({ page, text: forma, x: 3, y: PDF.mtBlock + 8 + offset, maxWidth: PDF.width * 0.245, align: "right", fontStyle: "negrito" });
+      addTXT({ page, text: valor, x: 3, y: PDF.mtBlock + 18 + offset, maxWidth: PDF.width * 0.245, align: "right", fontStyle: "negrito" });
+      offset += 22;
+    }
+    PDF.mtBlock += offset + 6;
+  }
+  async function bloco4(page = PDF.pages[PDF.pages.length - 1]) {
+    const ICMS = {
+      vBC: "Base Calc. ICMS",
+      vICMS: "Valor ICMS",
+      vICMSDeson: "ICMS Desonerado",
+      vBCST: "Base Calc. ICMS ST",
+      vST: "ICMS Subst. Trib.",
+      vFCPST: "Valor FCP ST",
+      vFCPSTRet: "FCP Retido ST",
+      vProd: "Valor Produtos",
+      vFrete: "Valor Frete",
+      vSeg: "Valor Seguro",
+      vDesc: "Valor Desconto",
+      vII: "Valor Imp. Import.",
+      vIPI: "Valor IPI",
+      vIPIDevol: "IPI Devolvido",
+      vPIS: "Valor PIS",
+      vCOFINS: "Valor COFINS",
+      vOutro: "Outras Desp. Acess.",
+      vNF: "Valor Total NF-e"
+    };
+    addTXT({ page, text: "TOTAIS", x: 3, y: PDF.mtBlock, maxWidth: PDF.width * 0.25, fontStyle: "negrito" });
+    let nextY = PDF.mtBlock + 8, nextX = 0, limitY = PDF.width - 8;
+    for (const key of Object.keys(ICMS)) {
+      const valor = xml.NFe.infNFe.total.ICMSTot[key];
+      const texto = valor ? parseFloat(valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "0,00";
+      await addRet(page, limitY * 0.111 * nextX, nextY, limitY * 0.111, 20);
+      addTXT({ page, text: ICMS[key], x: 2 + limitY * 0.111 * nextX, y: nextY + 1, maxWidth: limitY * 0.111 });
+      addTXT({ page, size: 10, text: texto.replace("R$", ""), x: limitY * 0.111 * nextX, y: nextY + 9, maxWidth: limitY * 0.111, align: "right", fontStyle: "negrito" });
+      nextX++;
+      if (nextX >= 9) {
+        nextX = 0;
+        nextY += 20;
+      }
+    }
+    PDF.mtBlock += nextY - PDF.mtBlock + 3;
+  }
+  async function bloco5(page = PDF.pages[PDF.pages.length - 1]) {
+    const transp = xml.NFe.infNFe.transp || {};
+    const vol = Array.isArray(transp.vol) ? transp.vol[0] : transp.vol || {};
+    const modFreteMap = {
+      "0": "0-Emitente",
+      "1": "1-Destinat\xE1rio",
+      "2": "2-Terceiros",
+      "3": "3-Pr\xF3prio por conta do remetente",
+      "4": "4-Pr\xF3prio por conta do destinat\xE1rio",
+      "9": "9-Sem Transporte"
+    };
+    addTXT({ page, text: "TRANSPORTADOR / VOLUMES TRANSPORTADOS", x: 3, y: PDF.mtBlock, maxWidth: PDF.width, fontStyle: "negrito" });
+    addRet(page, 0, PDF.mtBlock + 8, PDF.width * 0.29, 20);
+    addRet(page, PDF.width * 0.29, PDF.mtBlock + 8, PDF.width * 0.15, 20);
+    addRet(page, PDF.width * 0.44, PDF.mtBlock + 8, PDF.width * 0.14, 20);
+    addRet(page, PDF.width * 0.58, PDF.mtBlock + 8, PDF.width * 0.15, 20);
+    addRet(page, PDF.width * 0.73, PDF.mtBlock + 8, PDF.width * 0.04, 20);
+    addRet(page, PDF.width * 0.77, PDF.mtBlock + 8, PDF.width, 20);
+    addRet(page, PDF.width * 0.77, PDF.mtBlock + 28, PDF.width, 20);
+    addRet(page, PDF.width * 0.8, PDF.mtBlock + 48, PDF.width, 20);
+    addRet(page, PDF.width * 0.6, PDF.mtBlock + 48, PDF.width, 20);
+    addRet(page, PDF.width * 0.44, PDF.mtBlock + 48, PDF.width, 20);
+    addRet(page, PDF.width * 0.27, PDF.mtBlock + 48, PDF.width, 20);
+    addRet(page, PDF.width * 0.1, PDF.mtBlock + 48, PDF.width, 20);
+    addRet(page, 0, PDF.mtBlock + 48, PDF.width, 20);
+    addRet(page, 0, PDF.mtBlock + 28, PDF.width * 0.44, 20);
+    addRet(page, 0, PDF.mtBlock + 28, PDF.width * 0.73, 20);
+    addTXT({ page, text: "NOME / RAZ\xC3O SOCIAL", x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.29 });
+    addTXT({ page, text: transp.transporta?.xNome || "", x: 3, y: PDF.mtBlock + 18, maxWidth: PDF.width * 0.29, fontStyle: "negrito" });
+    addTXT({ page, text: "FRETE", x: PDF.width * 0.293, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.15 });
+    addTXT({ page, text: modFreteMap[transp.modFrete] || `C\xF3digo ${transp.modFrete || ""}`, x: PDF.width * 0.293, y: PDF.mtBlock + 18, maxWidth: PDF.width * 0.15, fontStyle: "negrito" });
+    addTXT({ page, text: "C\xD3DIGO ANTT", x: PDF.width * 0.443, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.15 });
+    addTXT({ page, text: transp.veicTransp?.RNTC || "", x: PDF.width * 0.443, y: PDF.mtBlock + 18, maxWidth: PDF.width * 0.15, fontStyle: "negrito" });
+    addTXT({ page, text: "PLACA DO VE\xCDCULO", x: PDF.width * 0.583, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.15 });
+    addTXT({ page, text: transp.veicTransp?.placa || "", x: PDF.width * 0.583, y: PDF.mtBlock + 18, maxWidth: PDF.width * 0.15, fontStyle: "negrito" });
+    addTXT({ page, text: "UF", x: PDF.width * 0.733, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.15 });
+    addTXT({ page, text: transp.veicTransp?.UF || "", x: PDF.width * 0.733, y: PDF.mtBlock + 18, maxWidth: PDF.width * 0.15, fontStyle: "negrito" });
+    addTXT({ page, text: "CNPJ/CPF", x: PDF.width * 0.773, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.15 });
+    addTXT({ page, text: transp.transporta?.CNPJ || transp.transporta?.CPF || "", x: PDF.width * 0.773, y: PDF.mtBlock + 18, maxWidth: PDF.width * 0.15, fontStyle: "negrito" });
+    addTXT({ page, text: "ENDERE\xC7O", x: 3, y: PDF.mtBlock + 29, maxWidth: PDF.width * 0.29 });
+    addTXT({ page, text: transp.transporta?.xEnder || "", x: 3, y: PDF.mtBlock + 39, maxWidth: PDF.width * 0.29, fontStyle: "negrito" });
+    addTXT({ page, text: "MUNIC\xCDPIO", x: PDF.width * 0.443, y: PDF.mtBlock + 29, maxWidth: PDF.width * 0.29 });
+    addTXT({ page, text: transp.transporta?.xMun || "", x: PDF.width * 0.443, y: PDF.mtBlock + 39, maxWidth: PDF.width * 0.29, fontStyle: "negrito" });
+    addTXT({ page, text: "UF", x: PDF.width * 0.733, y: PDF.mtBlock + 29, maxWidth: PDF.width * 0.29 });
+    addTXT({ page, text: transp.transporta?.UF || "", x: PDF.width * 0.733, y: PDF.mtBlock + 39, maxWidth: PDF.width * 0.29, fontStyle: "negrito" });
+    addTXT({ page, text: "INSCRI\xC7\xC3O ESTADUAL", x: PDF.width * 0.773, y: PDF.mtBlock + 29, maxWidth: PDF.width * 0.29 });
+    addTXT({ page, text: transp.transporta?.IE || "", x: PDF.width * 0.773, y: PDF.mtBlock + 39, maxWidth: PDF.width * 0.29, fontStyle: "negrito" });
+    addTXT({ page, text: "QUANTIDADE", x: 3, y: PDF.mtBlock + 49, maxWidth: PDF.width * 0.29 });
+    addTXT({ page, text: vol.qVol || "", x: 3, y: PDF.mtBlock + 59, maxWidth: PDF.width * 0.29, fontStyle: "negrito" });
+    addTXT({ page, text: "ESP\xC9CIE", x: PDF.width * 0.102, y: PDF.mtBlock + 49, maxWidth: PDF.width * 0.29 });
+    addTXT({ page, text: vol.esp || "", x: PDF.width * 0.102, y: PDF.mtBlock + 59, maxWidth: PDF.width * 0.29, fontStyle: "negrito" });
+    addTXT({ page, text: "MARCA", x: PDF.width * 0.273, y: PDF.mtBlock + 49, maxWidth: PDF.width * 0.29 });
+    addTXT({ page, text: vol.marca || "", x: PDF.width * 0.273, y: PDF.mtBlock + 59, maxWidth: PDF.width * 0.29, fontStyle: "negrito" });
+    addTXT({ page, text: "NUMERA\xC7\xC3O", x: PDF.width * 0.443, y: PDF.mtBlock + 49, maxWidth: PDF.width * 0.29 });
+    addTXT({ page, text: vol.nVol || "", x: PDF.width * 0.443, y: PDF.mtBlock + 59, maxWidth: PDF.width * 0.29, fontStyle: "negrito" });
+    addTXT({ page, text: "PESO BRUTO", x: PDF.width * 0.603, y: PDF.mtBlock + 49, maxWidth: PDF.width * 0.29 });
+    addTXT({ page, text: vol.pesoB || "", x: PDF.width * 0.603, y: PDF.mtBlock + 59, maxWidth: PDF.width * 0.29, fontStyle: "negrito" });
+    addTXT({ page, text: "PESO L\xCDQUIDO", x: PDF.width * 0.803, y: PDF.mtBlock + 49, maxWidth: PDF.width * 0.29 });
+    addTXT({ page, text: vol.pesoL || "", x: PDF.width * 0.803, y: PDF.mtBlock + 59, maxWidth: PDF.width * 0.29, fontStyle: "negrito" });
+    PDF.mtBlock += 70;
+  }
+  async function bloco6(page = PDF.pages[PDF.pages.length - 1]) {
+    xml.NFe.infNFe.det = Array.isArray(xml.NFe.infNFe.det) ? xml.NFe.infNFe.det : Array(100).fill(xml.NFe.infNFe.det);
+    addTXT({ page, text: "DADOS DOS PRODUTOS / SERVI\xC7OS", x: 3, y: PDF.mtBlock, maxWidth: PDF.width, fontStyle: "negrito" });
+    addRet(page, 0, PDF.mtBlock + 8, PDF.width, PDF.pages.length == 1 ? 355 : PDF.height - PDF.mtBlock - 15);
+    addRet(page, 0, PDF.mtBlock + 8, PDF.width, 15);
+    const colunas = [0.1, 0.34, 0.403, 0.453, 0.488, 0.525, 0.6, 0.655, 0.712, 0.76, 0.815, 0.875, 0.92, 0.957];
+    for (const x of colunas) addLTV(page, PDF.width * x, PDF.mtBlock + 8, PDF.pages.length == 1 ? 355 : PDF.height - PDF.mtBlock - 15);
+    addTXT({ page, text: "C\xD3DIGO PRODUTO", x: PDF.width * 3e-3, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.09, align: "center" });
+    addTXT({ page, text: "DESCRI\xC7\xC3O DO PRODUTO / SERVI\xC7O", x: PDF.width * 0.1, y: PDF.mtBlock + 12, maxWidth: PDF.width * 0.24, align: "center" });
+    addTXT({ page, text: "NCM/SH", x: PDF.width * 0.34, y: PDF.mtBlock + 12, maxWidth: PDF.width * 0.06, align: "center" });
+    addTXT({ page, text: "O/CSOSN", x: PDF.width * 0.4, y: PDF.mtBlock + 12, maxWidth: PDF.width * 0.06, align: "center" });
+    addTXT({ page, text: "CFOP", x: PDF.width * 0.46, y: PDF.mtBlock + 12, maxWidth: PDF.width * 0.025, align: "center" });
+    addTXT({ page, text: "UN", x: PDF.width * 0.495, y: PDF.mtBlock + 12, maxWidth: PDF.width * 0.025, align: "center" });
+    addTXT({ page, text: "QUANT.", x: PDF.width * 0.525, y: PDF.mtBlock + 12, maxWidth: PDF.width * 0.07, align: "center" });
+    addTXT({ page, text: "VALOR UNIT", x: PDF.width * 0.592, y: PDF.mtBlock + 8.5, maxWidth: PDF.width * 0.07, align: "center" });
+    addTXT({ page, text: "VALOR TOTAL", x: PDF.width * 0.65, y: PDF.mtBlock + 8.5, maxWidth: PDF.width * 0.07, align: "center" });
+    addTXT({ page, text: "VALOR DESC", x: PDF.width * 0.7, y: PDF.mtBlock + 8.5, maxWidth: PDF.width * 0.07, align: "center" });
+    addTXT({ page, text: "B.C\xC1LC ICMS", x: PDF.width * 0.75, y: PDF.mtBlock + 8.5, maxWidth: PDF.width * 0.07, align: "center" });
+    addTXT({ page, text: "VALOR ICMS", x: PDF.width * 0.81, y: PDF.mtBlock + 8.5, maxWidth: PDF.width * 0.07, align: "center" });
+    addTXT({ page, text: "VALOR IPI", x: PDF.width * 0.862, y: PDF.mtBlock + 8.5, maxWidth: PDF.width * 0.07, align: "center" });
+    addTXT({ page, text: "AL\xCDQ. ICMS", x: PDF.width * 0.924, y: PDF.mtBlock + 8.5, maxWidth: PDF.width * 0.03, align: "center" });
+    addTXT({ page, text: "AL\xCDQ. IPI", x: PDF.width * 0.961, y: PDF.mtBlock + 8.5, maxWidth: PDF.width * 0.03, align: "center" });
+    let line = 24, lLimite = PDF.pages.length == 1 ? 53 : 106, lIndex = 0;
+    for (const [iDet, det] of xml.NFe.infNFe.det.entries()) {
+      const prod = det.prod;
+      lIndex += await addTXT({ page, text: prod.xProd, x: 0, y: 0, maxWidth: PDF.width * 0.237, align: "center", cacl: true });
+      if (lIndex >= lLimite) {
+        xml.NFe.infNFe.det.splice(0, iDet);
+        PDF.mtBlock += PDF.pages.length == 1 ? 365 : 50;
+        return false;
+      }
+      const imposto = det.imposto || {};
+      const ICMS = imposto.ICMS?.ICMSSN102 || imposto.ICMS?.ICMS00 || {};
+      const IPI = imposto.IPI?.IPITrib || {};
+      const fmt = (v) => parseFloat(v || "0.00").toLocaleString("pt-BR", { minimumFractionDigits: 2 });
+      const xProdH = await addTXT({ page, text: prod.xProd, x: PDF.width * 0.096, y: PDF.mtBlock + line, maxWidth: PDF.width * 0.237, align: "left" });
+      const y = PDF.mtBlock + line + (xProdH - 1) * 2.7;
+      addTXT({ page, text: prod.cProd, x: 0, y, maxWidth: PDF.width * 0.1, align: "center" });
+      addTXT({ page, text: prod.NCM, x: PDF.width * 0.34, y, maxWidth: PDF.width * 0.061, align: "center" });
+      addTXT({ page, text: ICMS.CSOSN || ICMS.CST || "", x: PDF.width * 0.398, y, maxWidth: PDF.width * 0.061, align: "center" });
+      addTXT({ page, text: prod.CFOP, x: PDF.width * 0.44, y, maxWidth: PDF.width * 0.061, align: "center" });
+      addTXT({ page, text: prod.uCom, x: PDF.width * 0.476, y, maxWidth: PDF.width * 0.061, align: "center" });
+      addTXT({ page, text: fmt(prod.qCom), x: PDF.width * 0.533, y, maxWidth: PDF.width * 0.061, align: "center" });
+      addTXT({ page, text: fmt(prod.vUnCom), x: PDF.width * 0.597, y, maxWidth: PDF.width * 0.061, align: "center" });
+      addTXT({ page, text: fmt(prod.vProd), x: PDF.width * 0.655, y, maxWidth: PDF.width * 0.061, align: "center" });
+      addTXT({ page, text: fmt(prod.vDesc), x: PDF.width * 0.705, y, maxWidth: PDF.width * 0.061, align: "center" });
+      addTXT({ page, text: fmt(prod.vBC), x: PDF.width * 0.756, y, maxWidth: PDF.width * 0.061, align: "center" });
+      addTXT({ page, text: fmt(prod.vICMS), x: PDF.width * 0.816, y, maxWidth: PDF.width * 0.061, align: "center" });
+      addTXT({ page, text: fmt(prod.vIPI), x: PDF.width * 0.868, y, maxWidth: PDF.width * 0.061, align: "center" });
+      addTXT({ page, text: fmt(ICMS.pICMS), x: PDF.width * 0.908, y, maxWidth: PDF.width * 0.061, align: "center" });
+      addTXT({ page, text: fmt(IPI.pIPI), x: PDF.width * 0.954, y, maxWidth: PDF.width * 0.061, align: "center" });
+      line += 10 + (xProdH - 1) * 3;
+    }
+    PDF.mtBlock += 365;
+    return true;
+  }
+  async function bloco7(page = PDF.pages[PDF.pages.length - 1]) {
+    addTXT({ page, text: "DADOS ADICIONAIS", x: 3, y: PDF.mtBlock, maxWidth: PDF.width, fontStyle: "negrito" });
+    addRet(page, 0, PDF.mtBlock + 8, PDF.width, 40);
+    addRet(page, 0, PDF.mtBlock + 8, PDF.width * 0.65, 40);
+    addTXT({ page, text: "INFORMA\xC7\xD5ES COMPLEMENTARES", x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.5, align: "left", fontStyle: "negrito" });
+    addTXT({ page, text: "RESERVADO AO FISCO", x: PDF.width * 0.652, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.5, align: "left", fontStyle: "negrito" });
+    PDF.mtBlock += 40;
+  }
+  async function bloco8(page = PDF.pages[PDF.pages.length - 1]) {
+    const agora = /* @__PURE__ */ new Date();
+    const dataFormatada = agora.toLocaleDateString("pt-BR");
+    const horaFormatada = agora.toLocaleTimeString("pt-BR");
+    const textoEsquerda = `Impresso em ${dataFormatada} \xE0s ${horaFormatada}  Guara PDV - https://guaradev.com`;
+    addTXT({ page, text: textoEsquerda, x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width, align: "left" });
+    addTXT({ page, text: "Powered by GuaraDEV", x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.989, align: "right", fontStyle: "italic" });
+  }
+  async function addIMG({
+    page,
+    img,
+    x,
+    y,
+    h,
+    w
+  }) {
+    if (typeof img != void 0) {
+      let imgDemo2 = await fetch(img || "").then((response) => response.blob()).then((blob) => blob2base64(blob));
+      const base64Data = imgDemo2?.split(",")[1];
+      const bytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
+      const isPng = imgDemo2?.startsWith("data:image/png");
+      const image = isPng ? await PDF.doc.embedPng(bytes) : await PDF.doc.embedJpg(bytes);
+      await page.drawImage(image, {
+        x,
+        y: PDF.height - y - h,
+        // Corrige porque pdf-lib desenha do canto inferior da imagem
+        width: w,
+        height: h
+      });
+    }
+  }
+  function blob2base64(blob) {
+    const reader = new FileReader();
+    reader.readAsDataURL(blob);
+    return new Promise((resolve) => {
+      reader.onloadend = () => {
+        resolve(reader.result);
+      };
+    });
+  }
+  async function blocoDEMO(page = PDF.pages[PDF.pages.length - 1]) {
+    imgDemo = await fetch(imgDemo || "").then((response) => response.blob()).then((blob) => blob2base64(blob));
+    const base64Data = imgDemo?.split(",")[1];
+    const bytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
+    const isPng = imgDemo?.startsWith("data:image/png");
+    const image = isPng ? await PDF.doc.embedPng(bytes) : await PDF.doc.embedJpg(bytes);
+    page.drawImage(image, {
+      x: 0,
+      y: 0,
+      // Corrige porque pdf-lib desenha do canto inferior da imagem
+      width: PDF.width,
+      height: PDF.height
+    });
+  }
+  return new Promise(async (resolve, reject) => {
+    if (isBrowser) {
+      await gerarBlocos();
+      resolve(PDF.doc.save());
+    } else {
+      const { PassThrough } = await import("stream");
+      const stream = new PassThrough();
+      const chunks = [];
+      await gerarBlocos();
+      PDF.doc.pipe(stream);
+      PDF.doc.end();
+      stream.on("data", (chunk) => chunks.push(chunk));
+      stream.on("end", () => {
+        const buffer = Buffer.concat(chunks);
+        const base64 = buffer.toString("base64");
+        resolve(base64);
+      });
+      stream.on("error", reject);
+    }
   });
 };
-addRetangulo_fn = function(data = { l: 0, t: 0, w: 0, h: 0 }, mtIndex = __privateGet(this, _mtIndex)) {
-  __privateGet(this, _pdf).lineWidth(__privateGet(this, _pdfOpc).lineWidth).moveTo(data.l <= __privateGet(this, _pdfMargin) ? __privateGet(this, _pdfMargin) : data.l, data.t + mtIndex + __privateGet(this, _pdfMargin)).lineTo(data.l + data.w >= __privateGet(this, _pdfWidth) ? __privateGet(this, _pdfWidth) - __privateGet(this, _pdfMargin) : data.l + data.w, data.t + mtIndex + __privateGet(this, _pdfMargin)).lineTo(data.l + data.w >= __privateGet(this, _pdfWidth) ? __privateGet(this, _pdfWidth) - __privateGet(this, _pdfMargin) : data.l + data.w, data.t + mtIndex + __privateGet(this, _pdfMargin) + data.h).lineTo(data.l <= __privateGet(this, _pdfMargin) ? __privateGet(this, _pdfMargin) : data.l, data.t + mtIndex + __privateGet(this, _pdfMargin) + data.h).lineTo(data.l <= __privateGet(this, _pdfMargin) ? __privateGet(this, _pdfMargin) : data.l, data.t + mtIndex + __privateGet(this, _pdfMargin) - __privateGet(this, _pdfOpc).lineWidth * 0.3).stroke();
-};
-//Linha trajada
-addLinhaHT_fn = function(data = { t: 0, ls: 0, le: 0 }, mtIndex = __privateGet(this, _mtIndex)) {
-  data.t = (data.t <= __privateGet(this, _pdfMargin) ? __privateGet(this, _pdfMargin) : data.t) + mtIndex;
-  data.t = data.t >= __privateGet(this, _pdfHeight) - __privateGet(this, _pdfMargin) ? __privateGet(this, _pdfHeight) - __privateGet(this, _pdfMargin) : data.t;
-  if (data.ls > data.le) {
-    let temp = data.ls;
-    data.ls = data.le;
-    data.le = temp;
+
+// src/libs/danfce.ts
+import { PDFDocument as PDFDocument2, StandardFonts as StandardFonts2, rgb as rgb2 } from "pdf-lib";
+import { XMLParser as XMLParser2 } from "fast-xml-parser";
+import qrcode from "qrcode";
+var DANFCe = async (data = {}) => {
+  const parser = new XMLParser2({
+    ignoreAttributes: false,
+    attributeNamePrefix: "@",
+    parseTagValue: false
+    // Evita conversão automática de valores
+  });
+  var PDF = {
+    doc: await PDFDocument2.create(),
+    pages: [],
+    width: 0,
+    height: 0,
+    mtBlock: 0,
+    barCode: null
+  }, isBrowser = typeof window !== "undefined", xml = parser.parse(data.xml || ""), xmlRes = data.xmlRes, logo = data.logo, imgDemo = data.imgDemo, extras = data.extras || [];
+  console.log(xml);
+  PDF.pages.push(PDF.doc.addPage([
+    230,
+    await bloco0(null) + await bloco1(null) + await bloco2(null) + await bloco3(null) + await bloco4(null)
+  ]));
+  PDF.width = PDF.pages[0].getWidth();
+  PDF.height = PDF.pages[0].getHeight();
+  async function addRet(page, x, y, w, h) {
+    page.drawRectangle({
+      x: x + 4,
+      y: PDF.height - h - (y + 4),
+      width: x + w + 8 >= PDF.width ? PDF.width - x - 8 : w,
+      height: h,
+      borderColor: rgb2(0, 0, 0),
+      borderWidth: 1
+    });
   }
-  data.ls = data.ls <= __privateGet(this, _pdfMargin) ? __privateGet(this, _pdfMargin) : data.ls;
-  data.le = data.le >= __privateGet(this, _pdfWidth) - __privateGet(this, _pdfMargin) ? __privateGet(this, _pdfWidth) - __privateGet(this, _pdfMargin) : data.le;
-  __privateGet(this, _pdf).moveTo(data.ls, data.t).lineTo(data.le, data.t).dash(3, { space: 5 }).stroke(__privateGet(this, _pdfOpc).ltraj);
-  __privateGet(this, _pdf).undash();
-};
-//Linha Horizontal
-addLinhaH_fn = function(data = { t: 0, ls: 0, le: 0 }, mtIndex = __privateGet(this, _mtIndex)) {
-  data.t = (data.t <= __privateGet(this, _pdfMargin) ? __privateGet(this, _pdfMargin) : data.t) + mtIndex;
-  data.t = data.t >= __privateGet(this, _pdfHeight) - __privateGet(this, _pdfMargin) ? __privateGet(this, _pdfHeight) - __privateGet(this, _pdfMargin) : data.t;
-  if (data.ls > data.le) {
-    let temp = data.ls;
-    data.ls = data.le;
-    data.le = temp;
+  async function addLTH(page, x, y, h) {
+    const startX = Math.max(x, 4);
+    const endX = Math.min(x + h, PDF.width - 4);
+    const fixedY = PDF.height - y - 4;
+    page.drawLine({
+      start: { x: startX, y: fixedY },
+      end: { x: endX, y: fixedY },
+      color: rgb2(0, 0, 0),
+      thickness: 1,
+      dashArray: [5, 3]
+    });
   }
-  data.ls = data.ls <= __privateGet(this, _pdfMargin) ? __privateGet(this, _pdfMargin) : data.ls;
-  data.le = data.le >= __privateGet(this, _pdfWidth) - __privateGet(this, _pdfMargin) ? __privateGet(this, _pdfWidth) - __privateGet(this, _pdfMargin) : data.le;
-  __privateGet(this, _pdf).moveTo(data.ls, data.t).lineTo(data.le, data.t).stroke(__privateGet(this, _pdfOpc).borda);
-};
-//Linha vertical
-addLinhaV_fn = function(data = { l: 0, ts: 0, te: 0 }, mtIndex = __privateGet(this, _mtIndex)) {
-  data.l = data.l <= __privateGet(this, _pdfMargin) ? __privateGet(this, _pdfMargin) : data.l;
-  data.l = data.l >= __privateGet(this, _pdfWidth) - __privateGet(this, _pdfMargin) ? __privateGet(this, _pdfWidth) - __privateGet(this, _pdfMargin) : data.l;
-  if (data.ts > data.te) {
-    let temp = data.ts;
-    data.ts = data.te;
-    data.te = temp;
+  async function addLTV(page, x, y, w) {
+    const fixedX = Math.max(4, Math.min(x, PDF.width - 4));
+    const startY = Math.max(PDF.height - y - 4, 4);
+    const endY = Math.max(PDF.height - (y + w) - 4, 4);
+    page.drawLine({
+      start: { x: fixedX, y: startY },
+      end: { x: fixedX, y: endY },
+      color: rgb2(0, 0, 0),
+      thickness: 1,
+      dashArray: [5, 3]
+    });
   }
-  data.ts = (data.ts <= __privateGet(this, _pdfMargin) ? __privateGet(this, _pdfMargin) : data.ts) + mtIndex;
-  data.te = (data.te >= __privateGet(this, _pdfWidth) - __privateGet(this, _pdfMargin) ? __privateGet(this, _pdfWidth) - __privateGet(this, _pdfMargin) : data.te) + mtIndex;
-  __privateGet(this, _pdf).moveTo(data.l, data.ts).lineTo(data.l, data.te).stroke(__privateGet(this, _pdfOpc).borda);
-};
-addLinhaVT_fn = function(data = { l: 0, ts: 0, te: 0 }, mtIndex = __privateGet(this, _mtIndex)) {
-  data.l = data.l <= __privateGet(this, _pdfMargin) ? __privateGet(this, _pdfMargin) : data.l;
-  data.l = data.l >= __privateGet(this, _pdfWidth) - __privateGet(this, _pdfMargin) ? __privateGet(this, _pdfWidth) - __privateGet(this, _pdfMargin) : data.l;
-  if (data.ts > data.te) {
-    let temp = data.ts;
-    data.ts = data.te;
-    data.te = temp;
-  }
-  data.ts = (data.ts <= __privateGet(this, _pdfMargin) ? __privateGet(this, _pdfMargin) : data.ts) + mtIndex;
-  data.te = (data.te >= __privateGet(this, _pdfWidth) - __privateGet(this, _pdfMargin) ? __privateGet(this, _pdfWidth) - __privateGet(this, _pdfMargin) : data.te) + mtIndex;
-  __privateGet(this, _pdf).moveTo(data.l, data.ts).lineTo(data.l, data.te).dash(3, { space: 5 }).stroke(__privateGet(this, _pdfOpc).ltraj);
-};
-//Adicionar texto
-addTXT_fn = function(data, mtIndex = __privateGet(this, _mtIndex)) {
-  let font = "";
-  switch (data.font) {
-    case "italic":
-      font = "Times-Italic";
-      break;
-    case "bold":
-      font = "Times-Bold";
-      break;
-    default:
-      font = "Times-Roman";
-      break;
-  }
-  __privateGet(this, _pdf).font(font).fillColor(__privateGet(this, _pdfOpc).txt).fontSize(data.size || 7).text(
-    data.txt,
-    data.l <= __privateGet(this, _pdfMargin) ? __privateGet(this, _pdfMargin) + data.l : data.l,
-    (data.t <= __privateGet(this, _pdfMargin) ? data.t + __privateGet(this, _pdfMargin) : data.t + __privateGet(this, _pdfMargin)) + mtIndex,
-    {
-      width: (data.w && data.w >= __privateGet(this, _pdfWidth) ? data.w - data.l : data.w) ?? __privateGet(this, _pdfWidth) - data.l,
-      align: data.aling || "center"
+  async function addTXT({
+    page,
+    text,
+    x,
+    y,
+    maxWidth,
+    fontStyle = "normal",
+    size = 7,
+    lineHeight,
+    align = "left",
+    cacl = false
+  }) {
+    let font;
+    switch (fontStyle) {
+      case "negrito":
+        font = await PDF.doc.embedFont(StandardFonts2.TimesRomanBold);
+        break;
+      case "italic":
+        font = await PDF.doc.embedFont(StandardFonts2.TimesRomanItalic);
+        break;
+      default:
+        font = await PDF.doc.embedFont(StandardFonts2.TimesRoman);
     }
-  );
+    if (maxWidth + x > PDF.width) maxWidth = PDF.width - x - 2;
+    const effectiveLineHeight = lineHeight ?? size * 0.9;
+    const lines = wrapText(text, maxWidth, font, size);
+    if (cacl) return lines.length;
+    lines.forEach((line, index) => {
+      const textWidth = font.widthOfTextAtSize(line, size);
+      let drawX = x + 4;
+      if (align === "center") {
+        drawX = x + (maxWidth - textWidth) / 2;
+      } else if (align === "right") {
+        drawX = x + maxWidth - textWidth;
+      }
+      page.drawText(line, {
+        x: drawX,
+        y: PDF.height - effectiveLineHeight - (y + 4) - index * effectiveLineHeight,
+        size,
+        font
+      });
+    });
+    return lines.length;
+  }
+  function wrapText(text, maxWidth, font, fontSize) {
+    const words = text.split(" ");
+    const lines = [];
+    let line = "";
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i];
+      const testLine = line + word + " ";
+      const testWidth = font.widthOfTextAtSize(testLine, fontSize);
+      if (testWidth > maxWidth && line !== "") {
+        lines.push(line.trim());
+        line = word + " ";
+      } else {
+        line = testLine;
+      }
+    }
+    if (line.trim() !== "") {
+      lines.push(line.trim());
+    }
+    return lines;
+  }
+  async function gerarBlocos() {
+    await bloco0();
+    await bloco1();
+    await bloco2();
+    await bloco3();
+    await bloco4();
+  }
+  async function bloco0(page = PDF.pages[PDF.pages.length - 1]) {
+    if (!page) return 74;
+    let me = 0;
+    if (typeof logo !== "undefined") {
+      await addIMG({ page, img: logo, x: 3, y: PDF.mtBlock + 3, h: 60, w: 60 });
+      me += 62;
+    }
+    const emit = xml?.NFe?.infNFe?.emit || {};
+    const enderEmit = emit.enderEmit || {};
+    let line = await addTXT({
+      page,
+      text: `${emit.xNome || "Emitente desconhecido"}`,
+      x: 1 + me,
+      y: PDF.mtBlock + 5,
+      maxWidth: PDF.width,
+      align: "center",
+      fontStyle: "negrito"
+    });
+    PDF.mtBlock = (line - 1) * 2.7 + 10;
+    await addTXT({
+      page,
+      text: `CNPJ: ${emit.CNPJ || "N/D"} - I.E.: ${emit.IE || "N/D"}`,
+      x: 1 + me,
+      y: PDF.mtBlock + 5,
+      maxWidth: PDF.width,
+      align: "center"
+    });
+    await addTXT({
+      page,
+      text: `${enderEmit.xLgr || "Logradouro desconhecido"}, N\xB0${enderEmit.nro || "S/N"}`,
+      x: 0 + me,
+      y: PDF.mtBlock + 13,
+      maxWidth: PDF.width,
+      align: "center"
+    });
+    await addTXT({
+      page,
+      text: `${enderEmit.xBairro || "Bairro N/D"} - ${enderEmit.CEP || "CEP N/D"}`,
+      x: 0 + me,
+      y: PDF.mtBlock + 20,
+      maxWidth: PDF.width,
+      align: "center"
+    });
+    await addTXT({
+      page,
+      text: `${enderEmit.xMun || "Cidade N/D"} - ${enderEmit.UF || "UF"} Fone: ${enderEmit.fone || "N/D"}`,
+      x: 0 + me,
+      y: PDF.mtBlock + 27,
+      maxWidth: PDF.width,
+      align: "center"
+    });
+    addLTH(page, 0, PDF.mtBlock + 55, PDF.width);
+    await addTXT({
+      page,
+      text: `DOCUMENTO AUXILIAR DA NOTA FISCAL DE CONSUMIDOR ELETR\xD4NICA`,
+      x: 0,
+      y: PDF.mtBlock + 57,
+      maxWidth: PDF.width,
+      align: "center",
+      fontStyle: "negrito"
+    });
+    addLTH(page, 0, PDF.mtBlock + 72, PDF.width);
+    PDF.mtBlock += 74;
+    return 1;
+  }
+  async function bloco1(page = PDF.pages[PDF.pages.length - 1]) {
+    const produtos = Array.isArray(xml?.NFe?.infNFe?.det) ? xml.NFe.infNFe.det : xml?.NFe?.infNFe?.det ? [xml.NFe.infNFe.det] : [];
+    if (page == null) {
+      let lIndex = 0;
+      for (const det of produtos) {
+        const prod = det?.prod || {};
+        const text = prod.xProd || "";
+        const wrappedLines = wrapText(
+          text,
+          230 * 0.42,
+          await PDF.doc.embedFont(StandardFonts2.TimesRoman),
+          7
+        );
+        lIndex += wrappedLines.length;
+      }
+      return 24 + lIndex * 10;
+    } else {
+      let line = 7, lIndex = 0;
+      addTXT({ page, text: `CODIGO | DESCRI\xC7\xC3O`, x: PDF.width * 0, y: PDF.mtBlock, maxWidth: PDF.width * 0.5, align: "left" });
+      addTXT({ page, text: `QTDE | UN | VL. UNIT | VL. TOTAL`, x: 0, y: PDF.mtBlock, maxWidth: PDF.width * 0.98, align: "right" });
+      for (const det of produtos) {
+        const prod = det?.prod || {};
+        const fmt = (v) => parseFloat(v || "0.00").toLocaleString("pt-BR", {
+          minimumFractionDigits: 2
+        });
+        const xProd = `${prod.cProd} | ${prod.xProd}`;
+        const xProdH = await addTXT({
+          page,
+          text: xProd,
+          x: 0,
+          y: PDF.mtBlock + line,
+          maxWidth: PDF.width * 0.5,
+          align: "left"
+        });
+        const y = PDF.mtBlock + line + (xProdH - 1) * 2.7;
+        addTXT({
+          page,
+          text: `${fmt(prod.qCom)} | ${prod.uCom || "UN"} | ${fmt(prod.vUnCom)} | ${fmt(prod.vProd)}`,
+          x: 0,
+          y,
+          maxWidth: PDF.width * 0.98,
+          align: "right"
+        });
+        line += xProdH * 7;
+        lIndex += xProdH;
+      }
+      addLTH(page, 0, 7 + PDF.mtBlock + lIndex * 10, PDF.width);
+      PDF.mtBlock += 8 + lIndex * 10;
+      return 1;
+    }
+  }
+  async function bloco2(page = PDF.pages[PDF.pages.length - 1]) {
+    if (!page) {
+      const pag2 = xml?.NFe?.infNFe?.pag || {};
+      const detPag2 = Array.isArray(pag2.detPag) ? pag2.detPag : [pag2.detPag];
+      return 40 + detPag2.length * 7;
+    }
+    ;
+    const total = xml?.NFe?.infNFe?.total?.ICMSTot || {};
+    const pag = xml?.NFe?.infNFe?.pag || {};
+    const detPag = Array.isArray(pag.detPag) ? pag.detPag : [pag.detPag];
+    const vTroco = parseFloat(pag.vTroco || "0.00");
+    const qtdItens = Array.isArray(xml?.NFe?.infNFe?.det) ? xml.NFe.infNFe.det.length : xml?.NFe?.infNFe?.det ? 1 : 0;
+    const fmt = (v) => parseFloat(v || "0.00").toLocaleString("pt-BR", { minimumFractionDigits: 2 });
+    await addTXT({ page, text: `Qtde. Total de Itens`, x: 0, y: PDF.mtBlock, maxWidth: PDF.width, align: "left" });
+    await addTXT({ page, text: `${qtdItens}`, x: 0, y: PDF.mtBlock, maxWidth: PDF.width - 3, align: "right" });
+    await addTXT({ page, text: `Valor Total R$`, x: 0, y: PDF.mtBlock + 7, maxWidth: PDF.width, align: "left" });
+    await addTXT({ page, text: `${fmt(total.vProd)}`, x: 0, y: PDF.mtBlock + 7, maxWidth: PDF.width - 3, align: "right" });
+    await addTXT({ page, text: `Valor a Pagar R$`, x: 0, y: PDF.mtBlock + 14, maxWidth: PDF.width, align: "left" });
+    await addTXT({ page, text: `${fmt(total.vNF)}`, x: 0, y: PDF.mtBlock + 14, maxWidth: PDF.width - 3, align: "right" });
+    await addTXT({ page, text: `FORMAS PAGAMENTOS`, x: 0, y: PDF.mtBlock + 21, maxWidth: PDF.width, align: "left", fontStyle: "negrito" });
+    await addTXT({ page, text: `VALOR PAGO`, x: 0, y: PDF.mtBlock + 21, maxWidth: PDF.width - 3, align: "right", fontStyle: "negrito" });
+    let linhaY = PDF.mtBlock + 28;
+    const tPagMap = {
+      "01": "Dinheiro",
+      "02": "Cheque",
+      "03": "Cart\xE3o de Cr\xE9dito",
+      "04": "Cart\xE3o de D\xE9bito",
+      "05": "Cr\xE9dito Loja",
+      "10": "Vale Alimenta\xE7\xE3o",
+      "11": "Vale Refei\xE7\xE3o",
+      "12": "Vale Presente",
+      "13": "Vale Combust\xEDvel",
+      "15": "Boleto Banc\xE1rio",
+      "16": "Dep\xF3sito Banc\xE1rio",
+      "17": "Pagamento Instant\xE2neo (PIX)",
+      "18": "Transfer\xEAncia banc\xE1ria, Carteira Digital",
+      "19": "Programa de fidelidade",
+      "90": "Sem pagamento",
+      "99": "Outros"
+    };
+    for (const pagItem of detPag) {
+      if (!pagItem) continue;
+      const forma = tPagMap[pagItem.tPag] || "Forma desconhecida";
+      const valor = fmt(pagItem.vPag);
+      await addTXT({ page, text: forma.toUpperCase(), x: 0, y: linhaY, maxWidth: PDF.width, align: "left" });
+      await addTXT({ page, text: valor, x: 0, y: linhaY, maxWidth: PDF.width - 3, align: "right" });
+      linhaY += 7;
+    }
+    await addTXT({ page, text: `TROCO`, x: 0, y: linhaY, maxWidth: PDF.width, align: "left" });
+    await addTXT({ page, text: `${fmt(vTroco)}`, x: 0, y: linhaY, maxWidth: PDF.width - 3, align: "right" });
+    addLTH(page, 0, linhaY + 8, PDF.width);
+    PDF.mtBlock = linhaY + 9;
+    return 1;
+  }
+  async function bloco3(page = PDF.pages[PDF.pages.length - 1]) {
+    if (!page) {
+      let marg = 0;
+      const dest2 = xml?.NFe?.infNFe.dest || {};
+      if (Object.keys(dest2).length > 0) {
+        marg += 7;
+        if (typeof dest2.enderDest != null) {
+          marg += 7;
+        }
+      }
+      return 195 + marg;
+    }
+    ;
+    const infNFe = xml?.NFe?.infNFe || {};
+    const supl = xml?.NFe?.infNFeSupl || {};
+    const ide = infNFe.ide || {};
+    const dest = infNFe.dest || {};
+    const dhEmi = ide.dhEmi ? new Date(ide.dhEmi) : /* @__PURE__ */ new Date();
+    const dataFormatada = dhEmi.toLocaleDateString("pt-BR");
+    const horaFormatada = dhEmi.toLocaleTimeString("pt-BR");
+    const chave = infNFe["@Id"]?.replace("NFe", "") || "00000000000000000000000000000000000000000000";
+    const chaveFormatada = chave.replace(/(\d{4})(?=\d)/g, "$1 ").trim();
+    const protocolo = infNFe.procEmi === "0" ? "Protocolo n\xE3o informado" : "Protocolo de Autoriza\xE7\xE3o 000000000000000";
+    const dataAut = `Data de Autoriza\xE7\xE3o ${dataFormatada} ${horaFormatada}`;
+    const serie = ide.serie || "0";
+    const nNF = ide.nNF || "0";
+    const cpf = dest?.CPF ? `CPF: ${dest.CPF}` : " N\xC3O INFORMADO";
+    const nomeDest = dest?.xNome || null;
+    const enderDest = dest?.enderDest || null;
+    const endereco = enderDest ? `${enderDest.xLgr || ""}, ${enderDest.nro || "S/N"}, ${enderDest.xBairro || ""}, ${enderDest.xMun || ""}`.toUpperCase() : null;
+    const qrCode = supl.qrCode || "http://www.sefaz.mt.gov.br/nfce/consultanfce";
+    await addTXT({ page, text: `Consulte pela Chave de Acesso em`, x: 0, y: PDF.mtBlock, maxWidth: PDF.width, align: "center", fontStyle: "negrito" });
+    await addTXT({ page, text: `www.sefaz.mt.gov.br/nfce/consulta`, x: 0, y: PDF.mtBlock + 7, maxWidth: PDF.width, align: "center" });
+    await addTXT({ page, text: chaveFormatada, x: 0, y: PDF.mtBlock + 14, maxWidth: PDF.width, align: "center" });
+    await addTXT({ page, text: `CONSUMIDOR - ${cpf}`, x: 0, y: PDF.mtBlock + 21, maxWidth: PDF.width, align: "center", fontStyle: "negrito" });
+    PDF.mtBlock += 21;
+    if (nomeDest) {
+      await addTXT({ page, text: nomeDest, x: 0, y: PDF.mtBlock + 28, maxWidth: PDF.width, align: "center", fontStyle: "negrito" });
+      PDF.mtBlock += 7;
+    }
+    if (endereco) {
+      await addTXT({ page, text: endereco, x: 0, y: PDF.mtBlock + 7, maxWidth: PDF.width, align: "center", fontStyle: "negrito" });
+      PDF.mtBlock += 7;
+    }
+    await addTXT({
+      page,
+      text: `NFC-e n. ${nNF} Serie ${serie} Hs ${dataFormatada} ${horaFormatada}`,
+      x: 0,
+      y: PDF.mtBlock + 7,
+      maxWidth: PDF.width,
+      align: "center",
+      fontStyle: "negrito"
+    });
+    const qrCodeDataURL = await qrcode.toDataURL(qrCode);
+    await addIMG({
+      page,
+      img: qrCodeDataURL,
+      x: PDF.width / 2 - 75,
+      y: PDF.mtBlock + 25,
+      w: 150,
+      h: 150
+    });
+    await addTXT({ page, text: protocolo, x: 0, y: PDF.mtBlock + 14, maxWidth: PDF.width, align: "center", fontStyle: "negrito" });
+    await addTXT({ page, text: dataAut, x: 0, y: PDF.mtBlock + 21, maxWidth: PDF.width, align: "center", fontStyle: "negrito" });
+    await addTXT({
+      page,
+      text: `Tributos Totais incidentes (Lei Federal 12.741/2012) - Total R$ 0,00 0,00% - Federal 0,00% - Estadual 0,00% - Municipal 0,00%`,
+      x: 0,
+      y: PDF.mtBlock + 161,
+      maxWidth: PDF.width - 3,
+      align: "center"
+    });
+    PDF.mtBlock += 169;
+    return 1;
+  }
+  async function bloco4(page = PDF.pages[PDF.pages.length - 1]) {
+    if (page == null) {
+      let marg = 0;
+      if (typeof extras != "undefined") {
+        marg = extras?.length / 2;
+        marg = Math.round(marg);
+      }
+      return marg * 7;
+    } else {
+      addLTH(page, 0, 7 + PDF.mtBlock, PDF.width);
+      return 1;
+    }
+  }
+  async function addIMG({
+    page,
+    img,
+    x,
+    y,
+    h,
+    w
+  }) {
+    if (typeof img != void 0) {
+      let imgDemo2 = await fetch(img || "").then((response) => response.blob()).then((blob) => blob2base64(blob));
+      const base64Data = imgDemo2?.split(",")[1];
+      const bytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
+      const isPng = imgDemo2?.startsWith("data:image/png");
+      const image = isPng ? await PDF.doc.embedPng(bytes) : await PDF.doc.embedJpg(bytes);
+      await page.drawImage(image, {
+        x,
+        y: PDF.height - y - h,
+        // Corrige porque pdf-lib desenha do canto inferior da imagem
+        width: w,
+        height: h
+      });
+    }
+  }
+  function blob2base64(blob) {
+    const reader = new FileReader();
+    reader.readAsDataURL(blob);
+    return new Promise((resolve) => {
+      reader.onloadend = () => {
+        resolve(reader.result);
+      };
+    });
+  }
+  async function blocoDEMO(page = PDF.pages[PDF.pages.length - 1]) {
+    imgDemo = await fetch(imgDemo || "").then((response) => response.blob()).then((blob) => blob2base64(blob));
+    const base64Data = imgDemo?.split(",")[1];
+    const bytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
+    const isPng = imgDemo?.startsWith("data:image/png");
+    const image = isPng ? await PDF.doc.embedPng(bytes) : await PDF.doc.embedJpg(bytes);
+    page.drawImage(image, {
+      x: 0,
+      y: 0,
+      // Corrige porque pdf-lib desenha do canto inferior da imagem
+      width: PDF.width,
+      height: PDF.height
+    });
+  }
+  return new Promise(async (resolve, reject) => {
+    if (isBrowser) {
+      await gerarBlocos();
+      resolve(PDF.doc.save());
+    } else {
+      const { PassThrough } = await import("stream");
+      const stream = new PassThrough();
+      const chunks = [];
+      await gerarBlocos();
+      PDF.doc.pipe(stream);
+      PDF.doc.end();
+      stream.on("data", (chunk) => chunks.push(chunk));
+      stream.on("end", () => {
+        const buffer = Buffer.concat(chunks);
+        const base64 = buffer.toString("base64");
+        resolve(base64);
+      });
+      stream.on("error", reject);
+    }
+  });
 };
 export {
-  danfe
+  DANFCe,
+  DANFe
 };
 //# sourceMappingURL=index.js.map

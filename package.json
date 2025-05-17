@@ -16,6 +16,13 @@
     "danfe",
     "danfce"
   ],
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
   "scripts": {
     "build2": "vite build",
     "dev": "vite .",
