@@ -42,8 +42,6 @@ const xml = fs.readFileSync('./nota.xml', 'utf-8');
 <head>
     <meta charset="UTF-8">
     <title>Exemplo node-sped-pdf</title>
-    <script src="https://github.com/devongovett/blob-stream/releases/download/v0.1.3/blob-stream.js"></script>
-    <script src="https://github.com/foliojs/pdfkit/releases/download/v0.16.0/pdfkit.standalone.js"></script>
 </head>
 <body>
     <textarea id="xmlInput"></textarea>
@@ -54,14 +52,11 @@ const xml = fs.readFileSync('./nota.xml', 'utf-8');
       import { danfe } from './node_modules/node-sped-pdf/src/index.js';
 
       window.gerarPDF = async function() {
-        const xml = document.getElementById('xmlInput').value;
-        const pdf = new danfe({ xml, logo: 'https://sua-logo.com/logo.png' });
-
-        const res = await pdf.getPDF();
-        const blob = new Blob([Uint8Array.from(atob(res), c => c.charCodeAt(0))], { type: 'application/pdf' });
-        const url = URL.createObjectURL(blob);
-
-        document.getElementById('pdfOutput').src = url;
+        DANFe({ xml: `XML DA NOTA FISCAL`, consulta: `XML DE CONSULTA`, logo: "http://localhost:5173/logo.jpg" }).then(res => {
+            const blob = new Blob([res], { type: 'application/pdf' }); // <- usa res direto
+            const url = URL.createObjectURL(blob);
+            document.querySelector("#meuIframe").src = url;
+        });
       };
     </script>
 </body>
@@ -74,6 +69,7 @@ const xml = fs.readFileSync('./nota.xml', 'utf-8');
 |-------------|-----------|-------------|
 | `xml`       | XML da NFe/NFC-e. | ✅ Sim |
 | `logo`      | URL da imagem da logo (HTTP) ou imagem em base64 para exibição no PDF. | ❌ Não |
+| `consulta`  | XML de consulta de NFe/NFC-e| ❌ Não |
 
 ## 📄 Licença
 
