@@ -17,7 +17,6 @@ var DANFe = async (data = {}) => {
     mtBlock: 0,
     barCode: null
   }, isBrowser = typeof window !== "undefined", xml = parser.parse(data.xml || ""), xmlRes = data.xmlRes, logo = data.logo, imgDemo = data.imgDemo;
-  console.log(xml);
   PDF.pages.push(PDF.doc.addPage());
   PDF.width = PDF.pages[0].getWidth();
   PDF.height = PDF.pages[0].getHeight();
@@ -129,7 +128,6 @@ var DANFe = async (data = {}) => {
     let fim = await bloco6();
     await bloco7();
     await bloco8();
-    if (imgDemo != null) await blocoDEMO();
     while (!fim) {
       PDF.mtBlock = 0;
       PDF.pages.push(PDF.doc.addPage());
@@ -405,12 +403,12 @@ var DANFe = async (data = {}) => {
     PDF.mtBlock += 70;
   }
   async function bloco6(page = PDF.pages[PDF.pages.length - 1]) {
-    xml.NFe.infNFe.det = Array.isArray(xml.NFe.infNFe.det) ? xml.NFe.infNFe.det : Array(100).fill(xml.NFe.infNFe.det);
+    xml.NFe.infNFe.det = Array.isArray(xml.NFe.infNFe.det) ? xml.NFe.infNFe.det : [xml.NFe.infNFe.det];
     addTXT({ page, text: "DADOS DOS PRODUTOS / SERVI\xC7OS", x: 3, y: PDF.mtBlock, maxWidth: PDF.width, fontStyle: "negrito" });
-    addRet(page, 0, PDF.mtBlock + 8, PDF.width, PDF.pages.length == 1 ? 355 : PDF.height - PDF.mtBlock - 15);
+    addRet(page, 0, PDF.mtBlock + 8, PDF.width, PDF.pages.length == 1 ? 355 : PDF.height - PDF.mtBlock - 18);
     addRet(page, 0, PDF.mtBlock + 8, PDF.width, 15);
     const colunas = [0.1, 0.34, 0.403, 0.453, 0.488, 0.525, 0.6, 0.655, 0.712, 0.76, 0.815, 0.875, 0.92, 0.957];
-    for (const x of colunas) addLTV(page, PDF.width * x, PDF.mtBlock + 8, PDF.pages.length == 1 ? 355 : PDF.height - PDF.mtBlock - 15);
+    for (const x of colunas) addLTV(page, PDF.width * x, PDF.mtBlock + 8, PDF.pages.length == 1 ? 355 : PDF.height - PDF.mtBlock - 18);
     addTXT({ page, text: "C\xD3DIGO PRODUTO", x: PDF.width * 3e-3, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.09, align: "center" });
     addTXT({ page, text: "DESCRI\xC7\xC3O DO PRODUTO / SERVI\xC7O", x: PDF.width * 0.1, y: PDF.mtBlock + 12, maxWidth: PDF.width * 0.24, align: "center" });
     addTXT({ page, text: "NCM/SH", x: PDF.width * 0.34, y: PDF.mtBlock + 12, maxWidth: PDF.width * 0.06, align: "center" });
@@ -426,7 +424,7 @@ var DANFe = async (data = {}) => {
     addTXT({ page, text: "VALOR IPI", x: PDF.width * 0.862, y: PDF.mtBlock + 8.5, maxWidth: PDF.width * 0.07, align: "center" });
     addTXT({ page, text: "AL\xCDQ. ICMS", x: PDF.width * 0.924, y: PDF.mtBlock + 8.5, maxWidth: PDF.width * 0.03, align: "center" });
     addTXT({ page, text: "AL\xCDQ. IPI", x: PDF.width * 0.961, y: PDF.mtBlock + 8.5, maxWidth: PDF.width * 0.03, align: "center" });
-    let line = 24, lLimite = PDF.pages.length == 1 ? 53 : 106, lIndex = 0;
+    let line = 24, lLimite = PDF.pages.length == 1 ? 50 : 97, lIndex = 0;
     for (const [iDet, det] of xml.NFe.infNFe.det.entries()) {
       const prod = det.prod;
       lIndex += await addTXT({ page, text: prod.xProd, x: 0, y: 0, maxWidth: PDF.width * 0.237, align: "center", cacl: true });
@@ -455,7 +453,7 @@ var DANFe = async (data = {}) => {
       addTXT({ page, text: fmt(prod.vIPI), x: PDF.width * 0.868, y, maxWidth: PDF.width * 0.061, align: "center" });
       addTXT({ page, text: fmt(ICMS.pICMS), x: PDF.width * 0.908, y, maxWidth: PDF.width * 0.061, align: "center" });
       addTXT({ page, text: fmt(IPI.pIPI), x: PDF.width * 0.954, y, maxWidth: PDF.width * 0.061, align: "center" });
-      line += 10 + (xProdH - 1) * 3;
+      line += xProdH * 6.9;
     }
     PDF.mtBlock += 365;
     return true;
@@ -485,10 +483,10 @@ var DANFe = async (data = {}) => {
     w
   }) {
     if (typeof img != void 0) {
-      let imgDemo2 = await fetch(img || "").then((response) => response.blob()).then((blob) => blob2base64(blob));
-      const base64Data = imgDemo2?.split(",")[1];
-      const bytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
-      const isPng = imgDemo2?.startsWith("data:image/png");
+      if (img.includes("http") || img.includes("wwww"))
+        img = await fetch(img || "").then((response) => response.blob()).then((blob) => blob2base64(blob));
+      const bytes = Uint8Array.from(atob(img.split(",")[1]), (c) => c.charCodeAt(0));
+      const isPng = img?.startsWith("data:image/png");
       const image = isPng ? await PDF.doc.embedPng(bytes) : await PDF.doc.embedJpg(bytes);
       await page.drawImage(image, {
         x,
@@ -499,14 +497,31 @@ var DANFe = async (data = {}) => {
       });
     }
   }
-  function blob2base64(blob) {
-    const reader = new FileReader();
-    reader.readAsDataURL(blob);
-    return new Promise((resolve) => {
-      reader.onloadend = () => {
-        resolve(reader.result);
-      };
-    });
+  async function blob2base64(blobOrBuffer) {
+    const isBrowser2 = typeof window !== "undefined" && typeof window.FileReader !== "undefined";
+    if (isBrowser2) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(blobOrBuffer);
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = reject;
+      });
+    } else {
+      try {
+        let buffer;
+        if (blobOrBuffer instanceof Blob) {
+          const arrayBuffer = await blobOrBuffer.arrayBuffer();
+          buffer = Buffer.from(arrayBuffer);
+        } else if (Buffer.isBuffer(blobOrBuffer)) {
+          buffer = blobOrBuffer;
+        } else {
+          buffer = Buffer.from(blobOrBuffer);
+        }
+        return buffer.toString("base64");
+      } catch (err) {
+        throw new Error(`Falha ao converter: ${err}`);
+      }
+    }
   }
   async function blocoDEMO(page = PDF.pages[PDF.pages.length - 1]) {
     imgDemo = await fetch(imgDemo || "").then((response) => response.blob()).then((blob) => blob2base64(blob));
@@ -523,24 +538,8 @@ var DANFe = async (data = {}) => {
     });
   }
   return new Promise(async (resolve, reject) => {
-    if (isBrowser) {
-      await gerarBlocos();
-      resolve(PDF.doc.save());
-    } else {
-      const { PassThrough } = await import("stream");
-      const stream = new PassThrough();
-      const chunks = [];
-      await gerarBlocos();
-      PDF.doc.pipe(stream);
-      PDF.doc.end();
-      stream.on("data", (chunk) => chunks.push(chunk));
-      stream.on("end", () => {
-        const buffer = Buffer.concat(chunks);
-        const base64 = buffer.toString("base64");
-        resolve(base64);
-      });
-      stream.on("error", reject);
-    }
+    await gerarBlocos();
+    resolve(await PDF.doc.save());
   });
 };
 
@@ -563,7 +562,6 @@ var DANFCe = async (data = {}) => {
     mtBlock: 0,
     barCode: null
   }, isBrowser = typeof window !== "undefined", xml = parser.parse(data.xml || ""), xmlRes = data.xmlRes, logo = data.logo, imgDemo = data.imgDemo, extras = data.extras || [];
-  console.log(xml);
   PDF.pages.push(PDF.doc.addPage([
     230,
     await bloco0(null) + await bloco1(null) + await bloco2(null) + await bloco3(null) + await bloco4(null)
@@ -783,7 +781,7 @@ var DANFCe = async (data = {}) => {
           maxWidth: PDF.width * 0.98,
           align: "right"
         });
-        line += xProdH * 7;
+        line += xProdH * 6.9;
         lIndex += xProdH;
       }
       addLTH(page, 0, 7 + PDF.mtBlock + lIndex * 10, PDF.width);
@@ -942,10 +940,10 @@ var DANFCe = async (data = {}) => {
     w
   }) {
     if (typeof img != void 0) {
-      let imgDemo2 = await fetch(img || "").then((response) => response.blob()).then((blob) => blob2base64(blob));
-      const base64Data = imgDemo2?.split(",")[1];
-      const bytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
-      const isPng = imgDemo2?.startsWith("data:image/png");
+      if (img.includes("http") || img.includes("wwww"))
+        img = await fetch(img || "").then((response) => response.blob()).then((blob) => blob2base64(blob));
+      const bytes = Uint8Array.from(atob(img.split(",")[1]), (c) => c.charCodeAt(0));
+      const isPng = img?.startsWith("data:image/png");
       const image = isPng ? await PDF.doc.embedPng(bytes) : await PDF.doc.embedJpg(bytes);
       await page.drawImage(image, {
         x,
@@ -956,13 +954,23 @@ var DANFCe = async (data = {}) => {
       });
     }
   }
-  function blob2base64(blob) {
-    const reader = new FileReader();
-    reader.readAsDataURL(blob);
-    return new Promise((resolve) => {
-      reader.onloadend = () => {
-        resolve(reader.result);
-      };
+  function blob2base64(blobOrBuffer) {
+    return new Promise((resolve, reject) => {
+      const isBrowser2 = typeof window !== "undefined" && typeof window.FileReader !== "undefined";
+      if (isBrowser2) {
+        const reader = new FileReader();
+        reader.readAsDataURL(blobOrBuffer);
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = (err) => reject(err);
+      } else {
+        try {
+          const buffer = Buffer.isBuffer(blobOrBuffer) ? blobOrBuffer : Buffer.from(blobOrBuffer);
+          const base64 = `data:application/octet-stream;base64,${buffer.toString("base64")}`;
+          resolve(base64);
+        } catch (err) {
+          reject(err);
+        }
+      }
     });
   }
   async function blocoDEMO(page = PDF.pages[PDF.pages.length - 1]) {
@@ -980,24 +988,8 @@ var DANFCe = async (data = {}) => {
     });
   }
   return new Promise(async (resolve, reject) => {
-    if (isBrowser) {
-      await gerarBlocos();
-      resolve(PDF.doc.save());
-    } else {
-      const { PassThrough } = await import("stream");
-      const stream = new PassThrough();
-      const chunks = [];
-      await gerarBlocos();
-      PDF.doc.pipe(stream);
-      PDF.doc.end();
-      stream.on("data", (chunk) => chunks.push(chunk));
-      stream.on("end", () => {
-        const buffer = Buffer.concat(chunks);
-        const base64 = buffer.toString("base64");
-        resolve(base64);
-      });
-      stream.on("error", reject);
-    }
+    await gerarBlocos();
+    resolve(await PDF.doc.save());
   });
 };
 export {

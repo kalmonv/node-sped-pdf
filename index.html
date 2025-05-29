@@ -4,8 +4,6 @@
 <head>
     <meta charset="UTF-8">
     <title>Teste Browser</title>
-    <script src="https://github.com/devongovett/blob-stream/releases/download/v0.1.3/blob-stream.js"></script>
-    <script src="https://github.com/foliojs/pdfkit/releases/download/v0.16.0/pdfkit.standalone.js"></script>
     <style>
         html,
         body {
@@ -41,7 +39,7 @@
         <iframe id="meuIframe" src=""></iframe>
     </div>
 
-    <script type="module">
+    <script type="module" async>
         import { DANFe, DANFCe } from './src/index.ts'; // descomente se o arquivo existir
 
         function onChangeTexto(event) {
@@ -57,14 +55,13 @@
 
         //const textarea = document.getElementById("meuTextarea");
         //textarea.addEventListener("input", onChangeTexto);
-        fetch("/DANFE.xml").then(res => res.text()).then(xml => {
-            DANFe({ xml, logo: "http://localhost:5173/logo.jpg" }).then(res => {
-                console.log(res)
-                const blob = new Blob([res], { type: 'application/pdf' }); // <- usa res direto
-                const url = URL.createObjectURL(blob);
-                document.querySelector("#meuIframe").src = url;
-            });
-        })
+        
+        DANFe({ xml: await fetch("/DANFE.xml").then(res => res.text()), consulta: await fetch("/EVENTO.xml").then(res => res.text()), logo: "http://localhost:5173/logo.jpg" }).then(res => {
+            console.log(res)
+            const blob = new Blob([res], { type: 'application/pdf' }); // <- usa res direto
+            const url = URL.createObjectURL(blob);
+            document.querySelector("#meuIframe").src = url;
+        });
 
 
     </script>

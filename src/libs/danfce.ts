@@ -32,7 +32,6 @@ const DANFCe = async (data: { xml?: string, xmlRes?: Record<string, any> | null,
         logo = data.logo,
         imgDemo = data.imgDemo,
         extras = data.extras || [];
-    console.log(xml)
 
 
     //Configuração do PDF
@@ -305,7 +304,7 @@ const DANFCe = async (data: { xml?: string, xmlRes?: Record<string, any> | null,
 
             for (const det of produtos) {
                 const prod = det?.prod || {};
-                const fmt = (v:any) =>
+                const fmt = (v: any) =>
                     parseFloat(v || "0.00").toLocaleString("pt-BR", {
                         minimumFractionDigits: 2,
                     });
@@ -331,7 +330,7 @@ const DANFCe = async (data: { xml?: string, xmlRes?: Record<string, any> | null,
                     align: "right",
                 });
 
-                line += xProdH * 7;
+                line += xProdH * 6.9;
                 lIndex += xProdH;
             }
 
@@ -358,7 +357,7 @@ const DANFCe = async (data: { xml?: string, xmlRes?: Record<string, any> | null,
             ? xml.NFe.infNFe.det.length
             : xml?.NFe?.infNFe?.det ? 1 : 0;
 
-        const fmt = (v:any) =>
+        const fmt = (v: any) =>
             parseFloat(v || "0.00").toLocaleString("pt-BR", { minimumFractionDigits: 2 });
 
         await addTXT({ page, text: `Qtde. Total de Itens`, x: 0, y: PDF.mtBlock, maxWidth: PDF.width, align: "left" });
@@ -457,7 +456,7 @@ const DANFCe = async (data: { xml?: string, xmlRes?: Record<string, any> | null,
 
         await addTXT({ page, text: `CONSUMIDOR - ${cpf}`, x: 0, y: PDF.mtBlock + 21, maxWidth: PDF.width, align: "center", fontStyle: "negrito" });
         PDF.mtBlock += 21;
-        
+
         if (nomeDest) {
             await addTXT({ page, text: nomeDest, x: 0, y: PDF.mtBlock + 28, maxWidth: PDF.width, align: "center", fontStyle: "negrito" });
             PDF.mtBlock += 7;
@@ -493,7 +492,7 @@ const DANFCe = async (data: { xml?: string, xmlRes?: Record<string, any> | null,
         await addTXT({ page, text: protocolo, x: 0, y: PDF.mtBlock + 14, maxWidth: PDF.width, align: "center", fontStyle: "negrito" });
         await addTXT({ page, text: dataAut, x: 0, y: PDF.mtBlock + 21, maxWidth: PDF.width, align: "center", fontStyle: "negrito" });
 
-        
+
 
         // Tributos (valor fictício neste exemplo, pode ser extraído se disponível)
         await addTXT({
@@ -542,14 +541,13 @@ const DANFCe = async (data: { xml?: string, xmlRes?: Record<string, any> | null,
         w: number;
     }) {
         if (typeof img != undefined) {
-            let imgDemo = await fetch(img || "").then(response => response.blob()).then(blob => blob2base64(blob));
+            if (img.includes('http') || img.includes("wwww"))
+                img = await fetch(img || "").then(response => response.blob()).then(blob => blob2base64(blob));
 
-            // Decodifica Base64 e embeleza no PDF
-            const base64Data = imgDemo?.split(',')[1] as ""; // tira "data:image/png;base64," se tiver
-            const bytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+            const bytes = Uint8Array.from(atob(img.split(',')[1]), c => c.charCodeAt(0));
 
             // Detecta o tipo (png ou jpg?)
-            const isPng = imgDemo?.startsWith('data:image/png');
+            const isPng = img?.startsWith('data:image/png');
 
             // Embed imagem
             const image = isPng
@@ -565,15 +563,31 @@ const DANFCe = async (data: { xml?: string, xmlRes?: Record<string, any> | null,
         }
     }
 
-    function blob2base64(blob: any): Promise<any> {
-        const reader = new FileReader();
-        reader.readAsDataURL(blob);
-        return new Promise(resolve => {
-            reader.onloadend = () => {
-                resolve(reader.result);
-            };
+    function blob2base64(blobOrBuffer: any): Promise<any> {
+        return new Promise((resolve, reject) => {
+            // Detecta se está no navegador
+            const isBrowser = typeof window !== 'undefined' && typeof window.FileReader !== 'undefined';
+
+            if (isBrowser) {
+                const reader = new FileReader();
+                reader.readAsDataURL(blobOrBuffer);
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = (err) => reject(err);
+            } else {
+                // Node.js (espera Buffer ou Uint8Array)
+                try {
+                    const buffer = Buffer.isBuffer(blobOrBuffer)
+                        ? blobOrBuffer
+                        : Buffer.from(blobOrBuffer);
+                    const base64 = `data:application/octet-stream;base64,${buffer.toString('base64')}`;
+                    resolve(base64);
+                } catch (err) {
+                    reject(err);
+                }
+            }
         });
     }
+
 
     async function blocoDEMO(page = PDF.pages[(PDF.pages.length - 1)]) {
         imgDemo = await fetch(imgDemo || "").then(response => response.blob()).then(blob => blob2base64(blob));
@@ -601,31 +615,8 @@ const DANFCe = async (data: { xml?: string, xmlRes?: Record<string, any> | null,
     // --------------------- FIM blocos ------------------------
 
     return new Promise(async (resolve, reject) => {
-        if (isBrowser) {
-            // 📦 Browser
-            await gerarBlocos();
-
-            resolve(PDF.doc.save())
-        } else {
-            // 🧱 Node.js
-            const { PassThrough } = await import('stream');
-            const stream = new PassThrough();
-            const chunks: Uint8Array[] = [];
-
-            await gerarBlocos();
-
-
-            PDF.doc.pipe(stream);
-            PDF.doc.end(); // Aqui fecha o PDF
-
-            stream.on('data', chunk => chunks.push(chunk));
-            stream.on('end', () => {
-                const buffer = Buffer.concat(chunks);
-                const base64 = buffer.toString('base64');
-                resolve(base64);
-            });
-            stream.on('error', reject);
-        }
+        await gerarBlocos();
+        resolve(await PDF.doc.save());
     });
 }
 
