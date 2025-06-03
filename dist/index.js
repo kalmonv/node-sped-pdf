@@ -223,7 +223,7 @@ var DANFe = async (data = {}) => {
     addTXT({ page, text: "INSCRI\xC7\xC3O ESTADUAL DO SUBST. TRIBUT.", x: PDF.width * 0.5, y: PDF.mtBlock + 112, maxWidth: PDF.width * 0.29 });
     addTXT({ page, size: 10, text: xml.NFe.infNFe.emit.IEST || "", x: PDF.width * 0.6, y: PDF.mtBlock + 121, maxWidth: PDF.width * 0.05, align: "center", fontStyle: "negrito" });
     addTXT({ page, text: "CNPJ/CPF", x: PDF.width * 0.75, y: PDF.mtBlock + 112, maxWidth: PDF.width * 0.29 });
-    addTXT({ page, size: 10, text: embCNPJCPF(xml.NFe.infNFe.emit.CNPJ || xml.NFe.infNFe.emit.CPF || ""), x: PDF.width * 0.845, y: PDF.mtBlock + 121, maxWidth: PDF.width * 0.05, align: "center", fontStyle: "negrito" });
+    addTXT({ page, size: 10, text: embCNPJCPF(xml.NFe.infNFe.emit?.CNPJ || xml.NFe.infNFe.emit?.CPF || ""), x: PDF.width * 0.845, y: PDF.mtBlock + 121, maxWidth: PDF.width * 0.05, align: "center", fontStyle: "negrito" });
     PDF.mtBlock += 133;
   }
   async function barCode() {
@@ -271,7 +271,7 @@ var DANFe = async (data = {}) => {
     addTXT({ page, text: "NOME / RAZ\xC3O SOCIAL", x: 3, y: PDF.mtBlock + 10, maxWidth: PDF.width * 0.4 });
     addTXT({ page, size: 9, text: xml.NFe.infNFe.dest.xNome, x: 3, y: PDF.mtBlock + 20, maxWidth: PDF.width * 0.58, fontStyle: "negrito" });
     addTXT({ page, text: "CNPJ/CPF", x: PDF.width * 0.61, y: PDF.mtBlock + 10, maxWidth: PDF.width * 0.4 });
-    addTXT({ page, size: 9, text: embCNPJCPF(xml.NFe.infNFe.dest.CNPJ || xml.NFe.infNFe.dest.CPF || ""), x: PDF.width * 0.51, y: PDF.mtBlock + 20, maxWidth: PDF.width * 0.42, align: "center", fontStyle: "negrito" });
+    addTXT({ page, size: 9, text: embCNPJCPF(xml.NFe.infNFe.dest?.CNPJ || xml.NFe.infNFe.dest?.CPF || ""), x: PDF.width * 0.51, y: PDF.mtBlock + 20, maxWidth: PDF.width * 0.42, align: "center", fontStyle: "negrito" });
     addTXT({ page, text: "DATA DA EMISS\xC3O", x: PDF.width * 0.83, y: PDF.mtBlock + 10, maxWidth: PDF.width * 0.4 });
     addTXT({ page, size: 9, text: new Date(xml.NFe.infNFe.ide.dhEmi).toLocaleDateString("pt-BR"), x: PDF.width * 0.83, y: PDF.mtBlock + 20, maxWidth: PDF.width * 0.42, align: "center", fontStyle: "negrito" });
     addTXT({ page, text: "ENDERE\xC7O", x: 2, y: PDF.mtBlock + 31, maxWidth: PDF.width * 0.4 });
@@ -494,9 +494,9 @@ var DANFe = async (data = {}) => {
     const agora = /* @__PURE__ */ new Date();
     const dataFormatada = agora.toLocaleDateString("pt-BR");
     const horaFormatada = agora.toLocaleTimeString("pt-BR");
-    const textoEsquerda = `Impresso em ${dataFormatada} \xE0s ${horaFormatada} - ${xml.NFe.infNFe.infRespTec.xContato}`;
+    const textoEsquerda = `Impresso em ${dataFormatada} \xE0s ${horaFormatada}. ${xml.NFe.infNFe?.infRespTec?.xContato || ""}`;
     addTXT({ page, text: textoEsquerda, x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width, align: "left" });
-    addTXT({ page, text: "Powered by GuaraDEV", x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.989, align: "right", fontStyle: "italic" });
+    addTXT({ page, text: "Powered by @node-sped-pdf", x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.989, align: "right", fontStyle: "italic" });
   }
   async function addIMG({
     page,
