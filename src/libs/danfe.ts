@@ -30,11 +30,16 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
         xml = parser.parse(data.xml || ""),
         consulta = typeof data.consulta != "undefined" ? parser.parse(data.consulta) : {},
         logo = data.logo,
-        imgDemo = data.imgDemo;
+        imgDemo = data.imgDemo,
+        protNFe = null;
 
     //Multiplos eventos
     if (typeof consulta?.retConsSitNFe?.procEventoNFe != "undefined")
         consulta.retConsSitNFe.procEventoNFe = Array.isArray(consulta.retConsSitNFe.procEventoNFe) ? consulta.retConsSitNFe.procEventoNFe : [consulta.retConsSitNFe.procEventoNFe];
+
+    if (xml.nfeProc) {
+        xml = xml.nfeProc;
+    }
 
     //Configuração do PDF
     PDF.pages.push(PDF.doc.addPage());
@@ -217,7 +222,8 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
 
         for (const [i, page] of PDF.pages.entries()) {
             addTXT({ page, size: 8, text: `Folha ${i + 1}/${PDF.pages.length}`, x: 235, y: (i == 0 ? 142 : 82), maxWidth: PDF.width * 0.19, align: "center", fontStyle: "italic" });
-            if (xml.NFe.infNFe.ide.tpAmb == "1") {
+
+            if (xml.NFe.infNFe.ide.tpAmb == "2") {
                 addTXT({ page, size: 30, text: `NFe EMITIDA EM HOMOLOGAÇÃO SEM VALOR FISCAL`, x: 0, y: PDF.height * 0.5, maxWidth: PDF.width, align: "center", opacity: 0.5, fontStyle: "negrito" });
             }
 
@@ -274,7 +280,13 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
             mt += 12;
         }
 
-        addTXT({ page, size: 12, text: `${xml.NFe.infNFe.emit.xNome}`, x: 1, y: PDF.mtBlock + 35 + mt, maxWidth: PDF.width * 0.4, align: "center", fontStyle: "negrito" });
+        //Redimencionar nome.
+        let sizeNome = 12;
+        while (await addTXT({ page, size: sizeNome, text: `${xml.NFe.infNFe.emit.xNome}`, x: 1, y: PDF.mtBlock + 35 + mt, maxWidth: PDF.width * 0.4, align: "center", fontStyle: "negrito", cacl: true }) >= 2) {
+            sizeNome--;
+        }
+
+        addTXT({ page, size: sizeNome, text: `${xml.NFe.infNFe.emit.xNome}`, x: 1, y: PDF.mtBlock + 35 + mt, maxWidth: PDF.width * 0.4, align: "center", fontStyle: "negrito" });
         addTXT({ page, size: 9, text: `${xml.NFe.infNFe.emit.enderEmit.xLgr}, N°${xml.NFe.infNFe.emit.enderEmit.nro}`, x: 0, y: PDF.mtBlock + 45 + mt, maxWidth: PDF.width * 0.42, align: "center" });
         addTXT({ page, size: 9, text: `${xml.NFe.infNFe.emit.enderEmit.xBairro} - ${xml.NFe.infNFe.emit.enderEmit.CEP}`, x: 0, y: PDF.mtBlock + 55 + mt, maxWidth: PDF.width * 0.42, align: "center" });
         addTXT({ page, size: 9, text: `${xml.NFe.infNFe.emit.enderEmit.xMun} - ${xml.NFe.infNFe.emit.enderEmit.UF} Fone: ${xml.NFe.infNFe.emit.enderEmit.fone}`, x: 0, y: PDF.mtBlock + 65 + mt, maxWidth: PDF.width * 0.42, align: "center" });
@@ -294,8 +306,9 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
         addTXT({ page, size: 8, text: "Consulta de autenticidade no portal nacional da NF-e", x: PDF.width * 0.595, y: PDF.mtBlock + 70, maxWidth: PDF.width * 0.39, align: "center" });
         addTXT({ page, size: 8, text: " www.nfe.fazenda.gov.br/portal ou no site da Sefaz Autorizadora", x: PDF.width * 0.595, y: PDF.mtBlock + 81, maxWidth: PDF.width * 0.39, align: "center" });
 
+        console.log(xml.protNFe?.infProt?.nProt)
         addTXT({ page, text: "PROTOCOLO DE AUTORIZAÇÃO DE USO", x: PDF.width * 0.575, y: PDF.mtBlock + 92, maxWidth: PDF.width * 0.29 });
-        addTXT({ page, size: 10, text: `${xml.NFe?.protNFe?.infProt?.nProt || ""} - ${xml.NFe?.protNFe?.infProt?.dhRecbto ? new Date(xml.NFe.protNFe.infProt.dhRecbto).toLocaleString('pt-BR') : ""}`, x: PDF.width * 0.595, y: PDF.mtBlock + 101, maxWidth: PDF.width * 0.39, align: "center", fontStyle: "negrito" });
+        addTXT({ page, size: 10, text: `${xml.protNFe?.infProt?.nProt || ""} - ${xml.protNFe?.infProt?.dhRecbto ? new Date(xml.protNFe.infProt.dhRecbto).toLocaleString('pt-BR') : ""}`, x: PDF.width * 0.595, y: PDF.mtBlock + 101, maxWidth: PDF.width * 0.39, align: "center", fontStyle: "negrito" });
 
         addTXT({ page, text: "NATUREZA DA OPERAÇÃO", x: 3, y: PDF.mtBlock + 92, maxWidth: PDF.width * 0.29 });
         addTXT({ page, size: 10, text: xml.NFe.infNFe.ide.natOp, x: 3, y: PDF.mtBlock + 101, maxWidth: PDF.width * 0.58, align: "center", fontStyle: "negrito" });
@@ -600,7 +613,8 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
             lLimite = PDF.pages.length == 1 ? 50 : 97,
             lIndex = 0;
         for (const [iDet, det] of xml.NFe.infNFe.det.entries()) {
-            const prod = det.prod;
+            let prod = det.prod;
+            prod.xProd = prod.xProd.split("\n").join(" ");
             //Descobrir quantas linhas vamos usar.
             lIndex += await addTXT({ page, text: prod.xProd, x: 0, y: 0, maxWidth: PDF.width * 0.237, align: "center", cacl: true });
             if (lIndex >= lLimite) {
@@ -615,7 +629,7 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
             const fmt = (v: any) => parseFloat(v || "0.00").toLocaleString('pt-BR', { minimumFractionDigits: 2 });
 
             const xProdH = await addTXT({ page, text: prod.xProd, x: PDF.width * 0.096, y: PDF.mtBlock + line, maxWidth: PDF.width * 0.237, align: "left" });
-            const y = PDF.mtBlock + line + ((xProdH - 1) * 2.7);
+            const y = PDF.mtBlock + line + ((xProdH) * 2.7);
 
             addTXT({ page, text: prod.cProd, x: 0, y, maxWidth: PDF.width * 0.1, align: "center" });
             addTXT({ page, text: prod.NCM, x: PDF.width * 0.34, y, maxWidth: PDF.width * 0.061, align: "center" });
