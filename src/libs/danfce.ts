@@ -442,7 +442,7 @@ const DANFCe = async (data: { xml?: string, xmlRes?: Record<string, any> | null,
         const serie = ide.serie || "0";
         const nNF = ide.nNF || "0";
 
-        const cpf = dest?.CPF ? `CPF: ${dest.CPF}` : " NÃO INFORMADO";
+        const cpf = dest?.CPF ? `CPF: ${dest.CPF}` : "NÃO INFORMADO";
         const nomeDest = dest?.xNome || null;
         const enderDest = dest?.enderDest || null;
         const endereco = enderDest ? `${enderDest.xLgr || ""}, ${enderDest.nro || "S/N"}, ${enderDest.xBairro || ""}, ${enderDest.xMun || ""}`.toUpperCase() : null;
