@@ -122,6 +122,16 @@ var DANFe = async (data = {}) => {
     }
     return lines;
   }
+  function embCNPJCPF(valor) {
+    const numeros = valor.replace(/\D/g, "");
+    if (numeros.length === 11) {
+      return numeros.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+    } else if (numeros.length === 14) {
+      return numeros.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+    } else {
+      return valor;
+    }
+  }
   async function gerarBlocos() {
     await bloco0();
     await bloco1();
@@ -213,7 +223,7 @@ var DANFe = async (data = {}) => {
     addTXT({ page, text: "INSCRI\xC7\xC3O ESTADUAL DO SUBST. TRIBUT.", x: PDF.width * 0.5, y: PDF.mtBlock + 112, maxWidth: PDF.width * 0.29 });
     addTXT({ page, size: 10, text: xml.NFe.infNFe.emit.IEST || "", x: PDF.width * 0.6, y: PDF.mtBlock + 121, maxWidth: PDF.width * 0.05, align: "center", fontStyle: "negrito" });
     addTXT({ page, text: "CNPJ/CPF", x: PDF.width * 0.75, y: PDF.mtBlock + 112, maxWidth: PDF.width * 0.29 });
-    addTXT({ page, size: 10, text: xml.NFe.infNFe.emit.CNPJ, x: PDF.width * 0.845, y: PDF.mtBlock + 121, maxWidth: PDF.width * 0.05, align: "center", fontStyle: "negrito" });
+    addTXT({ page, size: 10, text: embCNPJCPF(xml.NFe.infNFe.emit.CNPJ || xml.NFe.infNFe.emit.CPF || ""), x: PDF.width * 0.845, y: PDF.mtBlock + 121, maxWidth: PDF.width * 0.05, align: "center", fontStyle: "negrito" });
     PDF.mtBlock += 133;
   }
   async function barCode() {
@@ -261,7 +271,7 @@ var DANFe = async (data = {}) => {
     addTXT({ page, text: "NOME / RAZ\xC3O SOCIAL", x: 3, y: PDF.mtBlock + 10, maxWidth: PDF.width * 0.4 });
     addTXT({ page, size: 9, text: xml.NFe.infNFe.dest.xNome, x: 3, y: PDF.mtBlock + 20, maxWidth: PDF.width * 0.58, fontStyle: "negrito" });
     addTXT({ page, text: "CNPJ/CPF", x: PDF.width * 0.61, y: PDF.mtBlock + 10, maxWidth: PDF.width * 0.4 });
-    addTXT({ page, size: 9, text: xml.NFe.infNFe.dest.CNPJ || xml.NFe.infNFe.dest.CPF, x: PDF.width * 0.51, y: PDF.mtBlock + 20, maxWidth: PDF.width * 0.42, align: "center", fontStyle: "negrito" });
+    addTXT({ page, size: 9, text: embCNPJCPF(xml.NFe.infNFe.dest.CNPJ || xml.NFe.infNFe.dest.CPF || ""), x: PDF.width * 0.51, y: PDF.mtBlock + 20, maxWidth: PDF.width * 0.42, align: "center", fontStyle: "negrito" });
     addTXT({ page, text: "DATA DA EMISS\xC3O", x: PDF.width * 0.83, y: PDF.mtBlock + 10, maxWidth: PDF.width * 0.4 });
     addTXT({ page, size: 9, text: new Date(xml.NFe.infNFe.ide.dhEmi).toLocaleDateString("pt-BR"), x: PDF.width * 0.83, y: PDF.mtBlock + 20, maxWidth: PDF.width * 0.42, align: "center", fontStyle: "negrito" });
     addTXT({ page, text: "ENDERE\xC7O", x: 2, y: PDF.mtBlock + 31, maxWidth: PDF.width * 0.4 });
@@ -393,7 +403,7 @@ var DANFe = async (data = {}) => {
     addTXT({ page, text: "UF", x: PDF.width * 0.733, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.15 });
     addTXT({ page, text: transp.veicTransp?.UF || "", x: PDF.width * 0.733, y: PDF.mtBlock + 18, maxWidth: PDF.width * 0.15, fontStyle: "negrito" });
     addTXT({ page, text: "CNPJ/CPF", x: PDF.width * 0.773, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.15 });
-    addTXT({ page, text: transp.transporta?.CNPJ || transp.transporta?.CPF || "", x: PDF.width * 0.773, y: PDF.mtBlock + 18, maxWidth: PDF.width * 0.15, fontStyle: "negrito" });
+    addTXT({ page, text: embCNPJCPF(transp.transporta?.CNPJ || transp.transporta?.CPF || ""), x: PDF.width * 0.773, y: PDF.mtBlock + 18, maxWidth: PDF.width * 0.15, fontStyle: "negrito" });
     addTXT({ page, text: "ENDERE\xC7O", x: 3, y: PDF.mtBlock + 29, maxWidth: PDF.width * 0.29 });
     addTXT({ page, text: transp.transporta?.xEnder || "", x: 3, y: PDF.mtBlock + 39, maxWidth: PDF.width * 0.29, fontStyle: "negrito" });
     addTXT({ page, text: "MUNIC\xCDPIO", x: PDF.width * 0.443, y: PDF.mtBlock + 29, maxWidth: PDF.width * 0.29 });
@@ -484,7 +494,7 @@ var DANFe = async (data = {}) => {
     const agora = /* @__PURE__ */ new Date();
     const dataFormatada = agora.toLocaleDateString("pt-BR");
     const horaFormatada = agora.toLocaleTimeString("pt-BR");
-    const textoEsquerda = `Impresso em ${dataFormatada} \xE0s ${horaFormatada}  Guara PDV - https://guaradev.com`;
+    const textoEsquerda = `Impresso em ${dataFormatada} \xE0s ${horaFormatada} - ${xml.NFe.infNFe.infRespTec.xContato}`;
     addTXT({ page, text: textoEsquerda, x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width, align: "left" });
     addTXT({ page, text: "Powered by GuaraDEV", x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.989, align: "right", fontStyle: "italic" });
   }
@@ -1368,7 +1378,7 @@ var DAV55 = async (data = { xml: {} }) => {
       addTXT({ page, text: fmt(prod.vProd), x: PDF.width * 0.93, y, maxWidth: PDF.width * 0.061, align: "center" });
       line += xProdH * 6.9;
     }
-    PDF.mtBlock += hBlock;
+    PDF.mtBlock += hBlock + 12;
     return true;
   }
   async function bloco7(page = PDF.pages[PDF.pages.length - 1]) {

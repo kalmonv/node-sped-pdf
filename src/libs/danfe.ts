@@ -176,6 +176,21 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
         return lines;
     }
 
+    function embCNPJCPF(valor: string) {
+        // Remove tudo que não for número
+        const numeros = valor.replace(/\D/g, '');
+
+        if (numeros.length === 11) {
+            // Formata CPF: 000.000.000-00
+            return numeros.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+        } else if (numeros.length === 14) {
+            // Formata CNPJ: 00.000.000/0000-00
+            return numeros.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+        } else {
+            return valor;
+        }
+    }
+
     // ----------------- FIM FUNÇÕES -----------------------
 
 
@@ -295,7 +310,7 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
         addTXT({ page, size: 10, text: xml.NFe.infNFe.emit.IEST || "", x: PDF.width * 0.6, y: PDF.mtBlock + 121, maxWidth: PDF.width * 0.05, align: "center", fontStyle: "negrito" });
 
         addTXT({ page, text: "CNPJ/CPF", x: PDF.width * 0.75, y: PDF.mtBlock + 112, maxWidth: PDF.width * 0.29 });
-        addTXT({ page, size: 10, text: xml.NFe.infNFe.emit.CNPJ, x: PDF.width * 0.845, y: PDF.mtBlock + 121, maxWidth: PDF.width * 0.05, align: "center", fontStyle: "negrito" });
+        addTXT({ page, size: 10, text: embCNPJCPF(xml.NFe.infNFe.emit.CNPJ || xml.NFe.infNFe.emit.CPF || ""), x: PDF.width * 0.845, y: PDF.mtBlock + 121, maxWidth: PDF.width * 0.05, align: "center", fontStyle: "negrito" });
 
         PDF.mtBlock += 133;
     }
@@ -355,7 +370,7 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
         addTXT({ page, size: 9, text: xml.NFe.infNFe.dest.xNome, x: 3, y: PDF.mtBlock + 20, maxWidth: PDF.width * 0.58, fontStyle: "negrito" });
 
         addTXT({ page, text: "CNPJ/CPF", x: PDF.width * 0.61, y: PDF.mtBlock + 10, maxWidth: PDF.width * 0.4 });
-        addTXT({ page, size: 9, text: xml.NFe.infNFe.dest.CNPJ || xml.NFe.infNFe.dest.CPF, x: PDF.width * 0.51, y: PDF.mtBlock + 20, maxWidth: PDF.width * 0.42, align: "center", fontStyle: "negrito" });
+        addTXT({ page, size: 9, text: embCNPJCPF(xml.NFe.infNFe.dest.CNPJ || xml.NFe.infNFe.dest.CPF || ""), x: PDF.width * 0.51, y: PDF.mtBlock + 20, maxWidth: PDF.width * 0.42, align: "center", fontStyle: "negrito" });
 
         addTXT({ page, text: "DATA DA EMISSÃO", x: PDF.width * 0.83, y: PDF.mtBlock + 10, maxWidth: PDF.width * 0.4 });
         addTXT({ page, size: 9, text: new Date(xml.NFe.infNFe.ide.dhEmi).toLocaleDateString('pt-BR'), x: PDF.width * 0.83, y: PDF.mtBlock + 20, maxWidth: PDF.width * 0.42, align: "center", fontStyle: "negrito" });
@@ -514,7 +529,7 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
         addTXT({ page, text: transp.veicTransp?.UF || "", x: PDF.width * 0.733, y: PDF.mtBlock + 18, maxWidth: PDF.width * 0.15, fontStyle: "negrito" });
 
         addTXT({ page, text: "CNPJ/CPF", x: PDF.width * 0.773, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.15 });
-        addTXT({ page, text: transp.transporta?.CNPJ || transp.transporta?.CPF || "", x: PDF.width * 0.773, y: PDF.mtBlock + 18, maxWidth: PDF.width * 0.15, fontStyle: "negrito" });
+        addTXT({ page, text: embCNPJCPF(transp.transporta?.CNPJ || transp.transporta?.CPF || ""), x: PDF.width * 0.773, y: PDF.mtBlock + 18, maxWidth: PDF.width * 0.15, fontStyle: "negrito" });
 
         // Linha 2
         addTXT({ page, text: "ENDEREÇO", x: 3, y: PDF.mtBlock + 29, maxWidth: PDF.width * 0.29 });
@@ -638,7 +653,7 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
         const agora = new Date();
         const dataFormatada = agora.toLocaleDateString('pt-BR');
         const horaFormatada = agora.toLocaleTimeString('pt-BR');
-        const textoEsquerda = `Impresso em ${dataFormatada} às ${horaFormatada}  Guara PDV - https://guaradev.com`;
+        const textoEsquerda = `Impresso em ${dataFormatada} às ${horaFormatada} - ${xml.NFe.infNFe.infRespTec.xContato}`;
 
         addTXT({ page, text: textoEsquerda, x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width, align: "left" });
         addTXT({ page, text: "Powered by GuaraDEV", x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.989, align: "right", fontStyle: "italic" });

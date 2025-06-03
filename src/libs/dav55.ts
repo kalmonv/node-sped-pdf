@@ -492,7 +492,7 @@ const DAV55 = async (data: { xml: XmlData, logo?: any | null, imgDemo?: string |
             addTXT({ page, text: fmt(prod.vProd), x: PDF.width * 0.93, y, maxWidth: PDF.width * 0.061, align: "center" });
             line += xProdH * 6.9;
         }
-        PDF.mtBlock += hBlock;
+        PDF.mtBlock += hBlock +12;
         return true;
     }
 
