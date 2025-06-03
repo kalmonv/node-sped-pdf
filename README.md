@@ -21,17 +21,10 @@ npm install node-sped-pdf
 ## 🚀 Uso em Node.js
 
 ```javascript
-import { danfe } from 'node-sped-pdf';
-import fs from 'fs';
-
-const xml = fs.readFileSync('./nota.xml', 'utf-8');
-
-(async () => {
-  const pdf = new danfe({ xml, logo: 'https://sua-logo.com/logo.png' });
-  const result = await pdf.getPDF();
-
-  fs.writeFileSync('nota.pdf', Buffer.from(result, 'base64'));
-})();
+import { DANFe, DANFCe } from 'node-sped-pdf';
+DANFe({ xml: `XML DA NOTA FISCAL`, consulta: `XML DE CONSULTA`, logo: "http://localhost:5173/logo.jpg" }).then(res => {
+  console.log(res)
+});
 ```
 
 ## 🌐 Uso no Browser
@@ -49,7 +42,7 @@ const xml = fs.readFileSync('./nota.xml', 'utf-8');
     <iframe id="pdfOutput" style="width:100%;height:90vh;"></iframe>
 
     <script type="module">
-      import { danfe } from './node_modules/node-sped-pdf/src/index.js';
+      import { DANFe, DANFCe }  from './node_modules/node-sped-pdf/src/index.js';
 
       window.gerarPDF = async function() {
         DANFe({ xml: `XML DA NOTA FISCAL`, consulta: `XML DE CONSULTA`, logo: "http://localhost:5173/logo.jpg" }).then(res => {
