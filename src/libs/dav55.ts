@@ -249,7 +249,7 @@ const DAV55 = async (data: { xml: XmlData, logo?: any | null, imgDemo?: string |
 
         // ---- Emitente
 
-        addTXT({ page, size: 12, text: `${xml.tagEmit.xNome}`, x: 1, y: PDF.mtBlock + 35 + mt, maxWidth: PDF.width * 0.4, align: "center", fontStyle: "negrito" });
+        addTXT({ page, size: 12, text: `${xml.tagEmit?.xNome}`, x: 1, y: PDF.mtBlock + 35 + mt, maxWidth: PDF.width * 0.4, align: "center", fontStyle: "negrito" });
         addTXT({ page, size: 9, text: `CNPJ/CPF ${embCNPJCPF(xml.tagEmit?.CPF || xml.tagEmit?.CNPJ)}`, x: 0, y: PDF.mtBlock + 46 + mt, maxWidth: PDF.width * 0.42, align: "center" });
         addTXT({ page, size: 9, text: `${xml.tagEmit?.xBairro || ""} - ${xml.tagEmit?.CEP || ""}, ${xml.tagEmit?.xLgr || ""}, N°${xml.tagEmit?.nro || ""}`, x: 0, y: PDF.mtBlock + 55 + mt, maxWidth: PDF.width * 0.42, align: "center" });
         addTXT({ page, size: 9, text: `${xml.tagEmit?.xMun || ""} - ${xml.tagEmit?.UF || ""} Fone: ${xml.tagEmit?.fone || ""}`, x: 0, y: PDF.mtBlock + 65 + mt, maxWidth: PDF.width * 0.42, align: "center" });

@@ -119,9 +119,6 @@ const exemplo = {
         "tokenIBPT": null,
         "CSC": null,
         "CSCid": null,
-        "PFX_senha": "kalmon99",
-        "PFX_validade": null,
-        "CNPJ": "47506306000188"
     }
 }
 

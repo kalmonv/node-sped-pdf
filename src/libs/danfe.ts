@@ -415,11 +415,11 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
         addTXT({ page, text: "HORA DA SAÍDA/ENTRDA", x: PDF.width * 0.83, y: PDF.mtBlock + 50, maxWidth: PDF.width * 0.4 });
         addTXT({ page, size: 9, text: new Date(xml.NFe.infNFe.ide.dhEmi).toLocaleTimeString('pt-BR'), x: PDF.width * 0.83, y: PDF.mtBlock + 60, maxWidth: PDF.width * 0.17, align: "center", fontStyle: "negrito" });
 
-        PDF.mtBlock += 73;
+        PDF.mtBlock += 72;
     }
 
     async function bloco3(page = PDF.pages[(PDF.pages.length - 1)]) {
-        addTXT({ page, text: "PAGAMENTO", x: 3, y: PDF.mtBlock, maxWidth: PDF.width * 0.25, fontStyle: "negrito" });
+        addTXT({ page, text: "PAGAMENTOS", x: 3, y: PDF.mtBlock, maxWidth: PDF.width * 0.25, fontStyle: "negrito" });
 
         const pagamentos = Array.isArray(xml.NFe.infNFe.pag.detPag) ? xml.NFe.infNFe.pag.detPag : [xml.NFe.infNFe.pag.detPag];
         const formaPagto: any = {
@@ -429,22 +429,28 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
             "90": "Sem pagamento", "99": "Outros"
         };
 
-        let offset = 0;
+        let IndexX = 0, contL = 0;
 
         for (const pag of pagamentos) {
             const forma = formaPagto[pag.tPag] || `Código ${pag.tPag}`;
             const valor = parseFloat(pag.vPag).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-            addRet(page, 0, PDF.mtBlock + 7 + offset, PDF.width * 0.25, 20);
-            addTXT({ page, text: "FORMA", x: 3, y: PDF.mtBlock + 8 + offset, maxWidth: PDF.width * 0.25 });
-            addTXT({ page, text: forma, x: 3, y: PDF.mtBlock + 18 + offset, maxWidth: PDF.width * 0.25 });
-            addTXT({ page, text: forma, x: 3, y: PDF.mtBlock + 8 + offset, maxWidth: PDF.width * 0.245, align: "right", fontStyle: "negrito" });
-            addTXT({ page, text: valor, x: 3, y: PDF.mtBlock + 18 + offset, maxWidth: PDF.width * 0.245, align: "right", fontStyle: "negrito" });
+            addRet(page, PDF.width * IndexX, PDF.mtBlock + 8 + (contL * 22), PDF.width * 0.25, 20);
+            addTXT({ page, text: "FORMA", x: (PDF.width * IndexX) + 3, y: PDF.mtBlock + 9 + (contL * 22), maxWidth: PDF.width * 0.25 });
+            addTXT({ page, text: forma, x: (PDF.width * IndexX) + 3, y: PDF.mtBlock + 19 + (contL * 22), maxWidth: PDF.width * 0.25 });
+            addTXT({ page, text: forma, x: (PDF.width * IndexX) + 3, y: PDF.mtBlock + 9 + (contL * 22), maxWidth: PDF.width * 0.245, align: "right", fontStyle: "negrito" });
+            addTXT({ page, text: valor, x: (PDF.width * IndexX) + 3, y: PDF.mtBlock + 19 + (contL * 22), maxWidth: PDF.width * 0.245, align: "right", fontStyle: "negrito" });
 
-            offset += 22;
+            if ((IndexX + 0.25) >= 1) {
+                IndexX = 0.25
+                contL++;
+            } else {
+                IndexX += 0.25;
+            }
+
         }
 
-        PDF.mtBlock += offset + 6;
+        PDF.mtBlock += ((contL + 1) * 22) + 6; //+1 pq a linha inicial
     }
 
 
