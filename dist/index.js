@@ -300,10 +300,10 @@ var DANFe = async (data = {}) => {
     addTXT({ page, size: 9, text: xml.NFe.infNFe.dest.IE || "", x: PDF.width * 0.67, y: PDF.mtBlock + 60, maxWidth: PDF.width * 0.17, align: "center", fontStyle: "negrito" });
     addTXT({ page, text: "HORA DA SA\xCDDA/ENTRDA", x: PDF.width * 0.83, y: PDF.mtBlock + 50, maxWidth: PDF.width * 0.4 });
     addTXT({ page, size: 9, text: new Date(xml.NFe.infNFe.ide.dhEmi).toLocaleTimeString("pt-BR"), x: PDF.width * 0.83, y: PDF.mtBlock + 60, maxWidth: PDF.width * 0.17, align: "center", fontStyle: "negrito" });
-    PDF.mtBlock += 73;
+    PDF.mtBlock += 72;
   }
   async function bloco3(page = PDF.pages[PDF.pages.length - 1]) {
-    addTXT({ page, text: "PAGAMENTO", x: 3, y: PDF.mtBlock, maxWidth: PDF.width * 0.25, fontStyle: "negrito" });
+    addTXT({ page, text: "PAGAMENTOS", x: 3, y: PDF.mtBlock, maxWidth: PDF.width * 0.25, fontStyle: "negrito" });
     const pagamentos = Array.isArray(xml.NFe.infNFe.pag.detPag) ? xml.NFe.infNFe.pag.detPag : [xml.NFe.infNFe.pag.detPag];
     const formaPagto = {
       "01": "Dinheiro",
@@ -323,18 +323,23 @@ var DANFe = async (data = {}) => {
       "90": "Sem pagamento",
       "99": "Outros"
     };
-    let offset = 0;
+    let IndexX = 0, contL = 0;
     for (const pag of pagamentos) {
       const forma = formaPagto[pag.tPag] || `C\xF3digo ${pag.tPag}`;
       const valor = parseFloat(pag.vPag).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-      addRet(page, 0, PDF.mtBlock + 7 + offset, PDF.width * 0.25, 20);
-      addTXT({ page, text: "FORMA", x: 3, y: PDF.mtBlock + 8 + offset, maxWidth: PDF.width * 0.25 });
-      addTXT({ page, text: forma, x: 3, y: PDF.mtBlock + 18 + offset, maxWidth: PDF.width * 0.25 });
-      addTXT({ page, text: forma, x: 3, y: PDF.mtBlock + 8 + offset, maxWidth: PDF.width * 0.245, align: "right", fontStyle: "negrito" });
-      addTXT({ page, text: valor, x: 3, y: PDF.mtBlock + 18 + offset, maxWidth: PDF.width * 0.245, align: "right", fontStyle: "negrito" });
-      offset += 22;
+      addRet(page, PDF.width * IndexX, PDF.mtBlock + 8 + contL * 22, PDF.width * 0.25, 20);
+      addTXT({ page, text: "FORMA", x: PDF.width * IndexX + 3, y: PDF.mtBlock + 9 + contL * 22, maxWidth: PDF.width * 0.25 });
+      addTXT({ page, text: forma, x: PDF.width * IndexX + 3, y: PDF.mtBlock + 19 + contL * 22, maxWidth: PDF.width * 0.25 });
+      addTXT({ page, text: forma, x: PDF.width * IndexX + 3, y: PDF.mtBlock + 9 + contL * 22, maxWidth: PDF.width * 0.245, align: "right", fontStyle: "negrito" });
+      addTXT({ page, text: valor, x: PDF.width * IndexX + 3, y: PDF.mtBlock + 19 + contL * 22, maxWidth: PDF.width * 0.245, align: "right", fontStyle: "negrito" });
+      if (IndexX + 0.25 >= 1) {
+        IndexX = 0.25;
+        contL++;
+      } else {
+        IndexX += 0.25;
+      }
     }
-    PDF.mtBlock += offset + 6;
+    PDF.mtBlock += (contL + 1) * 22 + 6;
   }
   async function bloco4(page = PDF.pages[PDF.pages.length - 1]) {
     const ICMS = {
@@ -1149,7 +1154,7 @@ var DAV55 = async (data = { xml: {} }) => {
     return lines;
   }
   function embCNPJCPF(valor) {
-    const numeros = valor.replace(/\D/g, "");
+    const numeros = (valor || "").replace(/\D/g, "");
     if (numeros.length === 11) {
       return numeros.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
     } else if (numeros.length === 14) {
@@ -1196,14 +1201,25 @@ var DAV55 = async (data = { xml: {} }) => {
       await addIMG({ page, img: logo, x: PDF.width * 0.18, y: PDF.mtBlock + 14, h: 37, w: 37 });
       mt += 12;
     }
-    addTXT({ page, size: 12, text: `${xml.tagEmit.xNome}`, x: 1, y: PDF.mtBlock + 35 + mt, maxWidth: PDF.width * 0.4, align: "center", fontStyle: "negrito" });
+    let sizeNome = 12;
+    while (await addTXT({ page, size: sizeNome, text: `${xml.tagEmit?.xNome}`, x: 1, y: PDF.mtBlock + 35 + mt, maxWidth: PDF.width * 0.4, align: "center", fontStyle: "negrito", cacl: true }) >= 2) {
+      sizeNome--;
+    }
+    addTXT({ page, size: sizeNome, text: `${xml.tagEmit?.xNome}`, x: 1, y: PDF.mtBlock + 35 + mt, maxWidth: PDF.width * 0.4, align: "center", fontStyle: "negrito" });
     addTXT({ page, size: 9, text: `CNPJ/CPF ${embCNPJCPF(xml.tagEmit?.CPF || xml.tagEmit?.CNPJ)}`, x: 0, y: PDF.mtBlock + 46 + mt, maxWidth: PDF.width * 0.42, align: "center" });
     addTXT({ page, size: 9, text: `${xml.tagEmit?.xBairro || ""} - ${xml.tagEmit?.CEP || ""}, ${xml.tagEmit?.xLgr || ""}, N\xB0${xml.tagEmit?.nro || ""}`, x: 0, y: PDF.mtBlock + 55 + mt, maxWidth: PDF.width * 0.42, align: "center" });
     addTXT({ page, size: 9, text: `${xml.tagEmit?.xMun || ""} - ${xml.tagEmit?.UF || ""} Fone: ${xml.tagEmit?.fone || ""}`, x: 0, y: PDF.mtBlock + 65 + mt, maxWidth: PDF.width * 0.42, align: "center" });
-    addTXT({ page, size: 12, text: `${xml.tagDest.xNome}`, x: PDF.width * 0.6, y: PDF.mtBlock + 35 + mt, maxWidth: PDF.width * 0.4, align: "center", fontStyle: "negrito" });
-    addTXT({ page, size: 9, text: `CNPJ/CPF ${embCNPJCPF(xml.tagDest?.CPF || xml.tagDest?.CNPJ)}`, x: PDF.width * 0.6, y: PDF.mtBlock + 46 + mt, maxWidth: PDF.width * 0.42, align: "center" });
-    addTXT({ page, size: 9, text: `${xml.tagDest?.xBairro || ""} - ${xml.tagDest?.CEP || ""}, ${xml.tagDest?.xLgr || ""}, N\xB0${xml.tagDest?.nro || ""}`, x: PDF.width * 0.6, y: PDF.mtBlock + 55 + mt, maxWidth: PDF.width * 0.42, align: "center" });
-    addTXT({ page, size: 9, text: `${xml.tagDest?.xMun || ""} - ${xml.tagDest?.UF || ""} Fone: ${xml.tagDest?.fone || ""}`, x: PDF.width * 0.6, y: PDF.mtBlock + 65 + mt, maxWidth: PDF.width * 0.42, align: "center" });
+    if (xml.tagDest) {
+      sizeNome = 12;
+      while (await addTXT({ page, size: sizeNome, text: `${xml.tagDest?.xNome}`, x: PDF.width * 0.6, y: PDF.mtBlock + 35 + mt, maxWidth: PDF.width * 0.4, align: "center", fontStyle: "negrito", cacl: true }) >= 2) {
+        sizeNome--;
+      }
+      addTXT({ page, size: sizeNome, text: `${xml.tagDest?.xNome}`, x: PDF.width * 0.6, y: PDF.mtBlock + 35 + mt, maxWidth: PDF.width * 0.4, align: "center", fontStyle: "negrito" });
+      addTXT({ page, size: 9, text: `CNPJ/CPF ${embCNPJCPF(xml.tagDest?.CPF || xml.tagDest?.CNPJ)}`, x: PDF.width * 0.6, y: PDF.mtBlock + 46 + mt, maxWidth: PDF.width * 0.42, align: "center" });
+      addTXT({ page, size: 9, text: `${xml.tagDest?.xBairro || ""} - ${xml.tagDest?.CEP || ""}, ${xml.tagDest?.xLgr || ""}, N\xB0${xml.tagDest?.nro || ""}`, x: PDF.width * 0.6, y: PDF.mtBlock + 55 + mt, maxWidth: PDF.width * 0.42, align: "center" });
+      addTXT({ page, size: 9, text: `${xml.tagDest?.xMun || ""} - ${xml.tagDest?.UF || ""} Fone: ${xml.tagDest?.fone || ""}`, x: PDF.width * 0.6, y: PDF.mtBlock + 65 + mt, maxWidth: PDF.width * 0.42, align: "center" });
+    } else {
+    }
     addTXT({ page, size: 16, text: "CUPOM", x: PDF.width * 0.393, y: PDF.mtBlock + 3, maxWidth: PDF.width * 0.2, align: "center", fontStyle: "negrito" });
     addTXT({ page, size: 8, text: "Documento N\xC3O Fiscal", x: PDF.width * 0.4, y: PDF.mtBlock + 19, maxWidth: PDF.width * 0.18, align: "center" });
     addTXT({ page, size: 8, text: "0 - ENTRADA", x: PDF.width * 0.415, y: PDF.mtBlock + 42, maxWidth: PDF.width * 0.19, align: "left" });
@@ -1336,7 +1352,7 @@ var DAV55 = async (data = { xml: {} }) => {
     addTXT({ page, text: "TOTAIS", x: 3, y: PDF.mtBlock, maxWidth: PDF.width * 0.25, fontStyle: "negrito" });
     let nextY = PDF.mtBlock + 8, nextX = 0, limitY = PDF.width - 8;
     for (const key of Object.keys(ICMS)) {
-      const valor = 0;
+      const valor = xml?.vTotal?.[key] || 0;
       const texto = valor ? parseFloat(valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "0,00";
       await addRet(page, limitY * 0.111 * nextX, nextY, limitY * 0.111, 20);
       addTXT({ page, text: ICMS[key], x: 2 + limitY * 0.111 * nextX, y: nextY + 1, maxWidth: limitY * 0.111 });
@@ -1404,7 +1420,7 @@ var DAV55 = async (data = { xml: {} }) => {
     const horaFormatada = agora.toLocaleTimeString("pt-BR");
     const textoEsquerda = `Impresso em ${dataFormatada} \xE0s ${horaFormatada}  Guara PDV - https://guaradev.com`;
     addTXT({ page, text: textoEsquerda, x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width, align: "left" });
-    addTXT({ page, text: "Powered by GuaraDEV", x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.989, align: "right", fontStyle: "italic" });
+    addTXT({ page, text: "Powered by @node-sped-pdf", x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.989, align: "right", fontStyle: "italic" });
   }
   async function addIMG({
     page,

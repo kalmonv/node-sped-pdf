@@ -177,7 +177,7 @@ const DAV55 = async (data: { xml: XmlData, logo?: any | null, imgDemo?: string |
 
     function embCNPJCPF(valor: string) {
         // Remove tudo que não for número
-        const numeros = valor.replace(/\D/g, '');
+        const numeros = (valor || "").replace(/\D/g, '');
 
         if (numeros.length === 11) {
             // Formata CPF: 000.000.000-00
@@ -247,18 +247,33 @@ const DAV55 = async (data: { xml: XmlData, logo?: any | null, imgDemo?: string |
             mt += 12;
         }
 
-        // ---- Emitente
+        //Redimencionar nome.
+        let sizeNome = 12;
+        while (await addTXT({ page, size: sizeNome, text: `${xml.tagEmit?.xNome}`, x: 1, y: PDF.mtBlock + 35 + mt, maxWidth: PDF.width * 0.4, align: "center", fontStyle: "negrito", cacl: true }) >= 2) {
+            sizeNome--;
+        }
+        addTXT({ page, size: sizeNome, text: `${xml.tagEmit?.xNome}`, x: 1, y: PDF.mtBlock + 35 + mt, maxWidth: PDF.width * 0.4, align: "center", fontStyle: "negrito" });
 
-        addTXT({ page, size: 12, text: `${xml.tagEmit?.xNome}`, x: 1, y: PDF.mtBlock + 35 + mt, maxWidth: PDF.width * 0.4, align: "center", fontStyle: "negrito" });
+
         addTXT({ page, size: 9, text: `CNPJ/CPF ${embCNPJCPF(xml.tagEmit?.CPF || xml.tagEmit?.CNPJ)}`, x: 0, y: PDF.mtBlock + 46 + mt, maxWidth: PDF.width * 0.42, align: "center" });
         addTXT({ page, size: 9, text: `${xml.tagEmit?.xBairro || ""} - ${xml.tagEmit?.CEP || ""}, ${xml.tagEmit?.xLgr || ""}, N°${xml.tagEmit?.nro || ""}`, x: 0, y: PDF.mtBlock + 55 + mt, maxWidth: PDF.width * 0.42, align: "center" });
         addTXT({ page, size: 9, text: `${xml.tagEmit?.xMun || ""} - ${xml.tagEmit?.UF || ""} Fone: ${xml.tagEmit?.fone || ""}`, x: 0, y: PDF.mtBlock + 65 + mt, maxWidth: PDF.width * 0.42, align: "center" });
 
         // ----- Destinatario
-        addTXT({ page, size: 12, text: `${xml.tagDest.xNome}`, x: PDF.width * 0.6, y: PDF.mtBlock + 35 + mt, maxWidth: PDF.width * 0.4, align: "center", fontStyle: "negrito" });
-        addTXT({ page, size: 9, text: `CNPJ/CPF ${embCNPJCPF(xml.tagDest?.CPF || xml.tagDest?.CNPJ)}`, x: PDF.width * 0.6, y: PDF.mtBlock + 46 + mt, maxWidth: PDF.width * 0.42, align: "center" });
-        addTXT({ page, size: 9, text: `${xml.tagDest?.xBairro || ""} - ${xml.tagDest?.CEP || ""}, ${xml.tagDest?.xLgr || ""}, N°${xml.tagDest?.nro || ""}`, x: PDF.width * 0.6, y: PDF.mtBlock + 55 + mt, maxWidth: PDF.width * 0.42, align: "center" });
-        addTXT({ page, size: 9, text: `${xml.tagDest?.xMun || ""} - ${xml.tagDest?.UF || ""} Fone: ${xml.tagDest?.fone || ""}`, x: PDF.width * 0.6, y: PDF.mtBlock + 65 + mt, maxWidth: PDF.width * 0.42, align: "center" });
+        if (xml.tagDest) {
+            sizeNome = 12;
+            while (await addTXT({ page, size: sizeNome, text: `${xml.tagDest?.xNome}`, x: PDF.width * 0.6, y: PDF.mtBlock + 35 + mt, maxWidth: PDF.width * 0.4, align: "center", fontStyle: "negrito", cacl: true }) >= 2) {
+                sizeNome--;
+            }
+            addTXT({ page, size: sizeNome, text: `${xml.tagDest?.xNome}`, x: PDF.width * 0.6, y: PDF.mtBlock + 35 + mt, maxWidth: PDF.width * 0.4, align: "center", fontStyle: "negrito" });
+
+            addTXT({ page, size: 9, text: `CNPJ/CPF ${embCNPJCPF(xml.tagDest?.CPF || xml.tagDest?.CNPJ)}`, x: PDF.width * 0.6, y: PDF.mtBlock + 46 + mt, maxWidth: PDF.width * 0.42, align: "center" });
+            addTXT({ page, size: 9, text: `${xml.tagDest?.xBairro || ""} - ${xml.tagDest?.CEP || ""}, ${xml.tagDest?.xLgr || ""}, N°${xml.tagDest?.nro || ""}`, x: PDF.width * 0.6, y: PDF.mtBlock + 55 + mt, maxWidth: PDF.width * 0.42, align: "center" });
+            addTXT({ page, size: 9, text: `${xml.tagDest?.xMun || ""} - ${xml.tagDest?.UF || ""} Fone: ${xml.tagDest?.fone || ""}`, x: PDF.width * 0.6, y: PDF.mtBlock + 65 + mt, maxWidth: PDF.width * 0.42, align: "center" });
+        } else {
+
+        }
+
 
 
         addTXT({ page, size: 16, text: "CUPOM", x: PDF.width * 0.393, y: PDF.mtBlock + 3, maxWidth: PDF.width * 0.2, align: "center", fontStyle: "negrito" });
@@ -421,7 +436,7 @@ const DAV55 = async (data: { xml: XmlData, logo?: any | null, imgDemo?: string |
         let nextY = PDF.mtBlock + 8, nextX = 0, limitY = (PDF.width - 8);
 
         for (const key of Object.keys(ICMS)) {
-            const valor = 0;
+            const valor = xml?.vTotal?.[key] || 0;
             const texto = valor ? parseFloat(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : "0,00";
 
             await addRet(page, (limitY * 0.111) * nextX, nextY, limitY * 0.111, 20);
@@ -492,7 +507,7 @@ const DAV55 = async (data: { xml: XmlData, logo?: any | null, imgDemo?: string |
             addTXT({ page, text: fmt(prod.vProd), x: PDF.width * 0.93, y, maxWidth: PDF.width * 0.061, align: "center" });
             line += xProdH * 6.9;
         }
-        PDF.mtBlock += hBlock +12;
+        PDF.mtBlock += hBlock + 12;
         return true;
     }
 
@@ -515,7 +530,7 @@ const DAV55 = async (data: { xml: XmlData, logo?: any | null, imgDemo?: string |
         const textoEsquerda = `Impresso em ${dataFormatada} às ${horaFormatada}  Guara PDV - https://guaradev.com`;
 
         addTXT({ page, text: textoEsquerda, x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width, align: "left" });
-        addTXT({ page, text: "Powered by GuaraDEV", x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.989, align: "right", fontStyle: "italic" });
+        addTXT({ page, text: "Powered by @node-sped-pdf", x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.989, align: "right", fontStyle: "italic" });
     }
 
 

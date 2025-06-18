@@ -56,7 +56,7 @@
         //const textarea = document.getElementById("meuTextarea");
         //textarea.addEventListener("input", onChangeTexto);
 
-        DAV55({ xml: await fetch("/DANFE.json").then(res => res.text()), logo: "http://localhost:5173/logo.jpg", orcamento: true }).then(res => {
+        DANFe({ xml: await fetch("/DANFE.xml").then(res => res.text()), logo: "http://localhost:5173/logo.jpg", orcamento: true }).then(res => {
             console.log(res)
             const blob = new Blob([res], { type: 'application/pdf' }); // <- usa res direto
             const url = URL.createObjectURL(blob);
