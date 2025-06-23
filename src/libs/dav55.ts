@@ -262,14 +262,15 @@ const DAV55 = async (data: { xml: XmlData, logo?: any | null, imgDemo?: string |
         // ----- Destinatario
         if (xml.tagDest) {
             sizeNome = 12;
-            while (await addTXT({ page, size: sizeNome, text: `${xml.tagDest?.xNome}`, x: PDF.width * 0.6, y: PDF.mtBlock + 35 + mt, maxWidth: PDF.width * 0.4, align: "center", fontStyle: "negrito", cacl: true }) >= 2) {
+            while (await addTXT({ page, size: sizeNome, text: `${xml.tagDest?.xNome}`, x: PDF.width * 0.58, y: PDF.mtBlock + 35 + mt, maxWidth: PDF.width * 0.4, align: "center", fontStyle: "negrito", cacl: true }) >= 2) {
                 sizeNome--;
             }
-            addTXT({ page, size: sizeNome, text: `${xml.tagDest?.xNome}`, x: PDF.width * 0.6, y: PDF.mtBlock + 35 + mt, maxWidth: PDF.width * 0.4, align: "center", fontStyle: "negrito" });
+            addTXT({ page, size: sizeNome, text: `${xml.tagDest?.xNome}`, x: PDF.width * 0.58, y: PDF.mtBlock + 35 + mt, maxWidth: PDF.width * 0.4, align: "center", fontStyle: "negrito" });
 
-            addTXT({ page, size: 9, text: `CNPJ/CPF ${embCNPJCPF(xml.tagDest?.CPF || xml.tagDest?.CNPJ)}`, x: PDF.width * 0.6, y: PDF.mtBlock + 46 + mt, maxWidth: PDF.width * 0.42, align: "center" });
-            addTXT({ page, size: 9, text: `${xml.tagDest?.xBairro || ""} - ${xml.tagDest?.CEP || ""}, ${xml.tagDest?.xLgr || ""}, N°${xml.tagDest?.nro || ""}`, x: PDF.width * 0.6, y: PDF.mtBlock + 55 + mt, maxWidth: PDF.width * 0.42, align: "center" });
-            addTXT({ page, size: 9, text: `${xml.tagDest?.xMun || ""} - ${xml.tagDest?.UF || ""} Fone: ${xml.tagDest?.fone || ""}`, x: PDF.width * 0.6, y: PDF.mtBlock + 65 + mt, maxWidth: PDF.width * 0.42, align: "center" });
+            addTXT({ page, size: 9, text: `CNPJ/CPF ${embCNPJCPF(xml.tagDest?.CPF || xml.tagDest?.CNPJ)}`, x: PDF.width * 0.58, y: PDF.mtBlock + 46 + mt, maxWidth: PDF.width * 0.42, align: "center" });
+
+            addTXT({ page, size: 9, text: `${xml.tagDest?.xMun || ""} - ${xml.tagDest?.UF || ""}, ${xml.tagDest?.xBairro || ""} - ${xml.tagDest?.CEP || ""}, ${xml.tagDest?.xLgr || ""}, N°${xml.tagDest?.nro || ""}`, x: PDF.width * 0.58, y: PDF.mtBlock + 55 + mt, maxWidth: PDF.width * 0.42, align: "center" });
+            addTXT({ page, size: 9, text: ``, x: PDF.width * 0.6, y: PDF.mtBlock + 65 + mt, maxWidth: PDF.width * 0.42, align: "center" });
         } else {
 
         }
@@ -520,6 +521,18 @@ const DAV55 = async (data: { xml: XmlData, logo?: any | null, imgDemo?: string |
 
         addTXT({ page, text: "INFORMAÇÕES COMPLEMENTARES", x: 3, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.5, align: "left", fontStyle: "negrito" });
         addTXT({ page, text: "RESERVADO AO FISCO", x: PDF.width * 0.652, y: PDF.mtBlock + 8, maxWidth: PDF.width * 0.5, align: "left", fontStyle: "negrito" });
+
+        if (await addTXT({ page, text: xml.taginfAdic?.infAdFisco || "", x: 3, y: PDF.mtBlock + 14, maxWidth: PDF.width * 0.65, align: "left", cacl: true }) >= 5) {
+            addTXT({ page, text: xml.taginfAdic?.infAdFisco.slice(0, 400) + "..." || "", x: 3, y: PDF.mtBlock + 14, maxWidth: PDF.width * 0.65, align: "left" })
+        } else {
+            addTXT({ page, text: xml.taginfAdic?.infAdFisco || "", x: 3, y: PDF.mtBlock + 14, maxWidth: PDF.width * 0.65, align: "left" })
+        };
+
+        if (await addTXT({ page, text: xml.taginfAdic?.infCpl || "", x: PDF.width * 0.652, y: PDF.mtBlock + 14, maxWidth: PDF.width * 0.65, align: "left", cacl: true }) >= 5) {
+            addTXT({ page, text: xml.taginfAdic?.infCpl.slice(0, 200) + "..." || "", x: PDF.width * 0.652, y: PDF.mtBlock + 14, maxWidth: PDF.width * 0.65, align: "left" })
+        } else {
+            addTXT({ page, text: xml.taginfAdic?.infCpl || "", x: PDF.width * 0.652, y: PDF.mtBlock + 14, maxWidth: PDF.width * 0.65, align: "left" })
+        };
         PDF.mtBlock += 40;
     }
 
