@@ -160,6 +160,7 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
 
 
     function wrapText(text: string, maxWidth: number, font: PDFFont, fontSize: number): string[] {
+        text = (text ?? '').toString();
         const words = text.split(' ');
         const lines: string[] = [];
         let line = '';
@@ -195,6 +196,58 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
         } else {
             return valor;
         }
+    }
+
+    function getResumoPagamentosParentese(): string {
+        const abrev: Record<string, string> = {
+            "01": "Dinheiro",
+            "02": "Cheque",
+            "03": "C.Cred",
+            "04": "C.Deb",
+            "05": "Crédito",
+            "10": "V.Aliment",
+            "11": "V.Refei",
+            "12": "V.Presente",
+            "13": "V.Comb",
+            "14": "Dup",
+            "15": "Boleto",
+            "17": "Pix",
+            "18": "Transf.",
+            "19": "Fidelidade",
+            "99": "Outros"
+        };
+
+        const partes: string[] = [];
+        // detPag
+        const pagNode = (xml as any)?.NFe?.infNFe?.pag;
+        if (pagNode && typeof pagNode.detPag !== "undefined") {
+            const dets = Array.isArray(pagNode.detPag) ? pagNode.detPag : [pagNode.detPag];
+            const itens = dets
+                .filter((d: any) => d && d.tPag !== "90" && !Number.isNaN(parseFloat(d?.vPag || "0")) && parseFloat(d?.vPag || "0") !== 0)
+                .map((d: any) => {
+                    const cod = (d?.tPag ?? "").toString().padStart(2, "0");
+                    const label = abrev[cod] || `Cod ${cod}`;
+                    const valor = parseFloat(d?.vPag || "0");
+                    return { label, valor };
+                });
+            const agg: Record<string, number> = {};
+            for (const it of itens) {
+                agg[it.label] = (agg[it.label] || 0) + it.valor;
+            }
+            const partesPag = Object.keys(agg).map(k => `${k} ${agg[k].toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+            if (partesPag.length > 0) partes.push(partesPag.join("; "));
+        }
+        // duplicatas
+        const cobr = (xml as any)?.NFe?.infNFe?.cobr;
+        if (cobr && typeof cobr.dup !== "undefined") {
+            const dups = Array.isArray(cobr.dup) ? cobr.dup : [cobr.dup];
+            const qtd = dups.length;
+            const total = dups.reduce((s: number, d: any) => s + parseFloat(d?.vDup || "0"), 0);
+            if (qtd > 0 && !Number.isNaN(total)) {
+                partes.push(`Bol/Dup: ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${qtd}x)`);
+            }
+        }
+        return partes.length > 0 ? ` (${partes.join("; ")})` : "";
     }
 
     // ----------------- FIM FUNÇÕES -----------------------
@@ -241,21 +294,31 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
 
 
     async function bloco0(page = PDF.pages[(PDF.pages.length - 1)]) {
-        addRet(page, 0, PDF.mtBlock + 0, PDF.width, 50);
-        addRet(page, 0, PDF.mtBlock + 0, PDF.width * 0.8, 25);
-        addRet(page, 0, PDF.mtBlock + 0, PDF.width * 0.8, 25);
-        addRet(page, 0, PDF.mtBlock + 25, PDF.width * 0.8, 25);
-        addRet(page, PDF.width * 0.17, PDF.mtBlock + 25, PDF.width * 0.63, 25);
+        const resumoPg = getResumoPagamentosParentese();
+        const textoReceb = `RECEBEMOS DE ${xml.NFe.infNFe.emit.xNome} OS PRODUTOS E/OU SERVIÇOS CONSTANTES DA NOTA FISCAL ELETRÔNICA INDICADA ABAIXO. EMISSÃO: ${new Date(xml.NFe.infNFe.ide.dhEmi).toLocaleDateString('pt-BR')} VALOR TOTAL: ${parseFloat(xml.NFe.infNFe.total.ICMSTot.vNF).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}${resumoPg}  DESTINATÁRIO: NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL - ${xml.NFe.infNFe.dest.enderDest.xLgr}, ${xml.NFe.infNFe.dest.enderDest.nro} ${xml.NFe.infNFe.dest.enderDest.xBairro} ${xml.NFe.infNFe.dest.enderDest.xMun}-${xml.NFe.infNFe.dest.enderDest.UF}`;
+        const linhas = await addTXT({ page, text: textoReceb, x: 2, y: PDF.mtBlock + 2, maxWidth: PDF.width * 0.78, cacl: true });
+        const lineH = 7 * .9;
+        const extraLines = Math.max(0, Math.min(3, linhas) - 2);
+        const hReceb = 25 + Math.ceil(extraLines * lineH);
+        const hTotal = 50 + (hReceb - 25);
 
-        addTXT({ page, text: `RECEBEMOS DE ${xml.NFe.infNFe.emit.xNome} OS PRODUTOS E/OU SERVIÇOS CONSTANTES DA NOTA FISCAL ELETRÔNICA INDICADA ABAIXO. EMISSÃO: ${new Date(xml.NFe.infNFe.ide.dhEmi).toLocaleDateString('pt-BR')} VALOR TOTAL: ${parseFloat(xml.NFe.infNFe.total.ICMSTot.vNF).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} DESTINATÁRIO: NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL - ${xml.NFe.infNFe.dest.enderDest.xLgr}, ${xml.NFe.infNFe.dest.enderDest.nro} ${xml.NFe.infNFe.dest.enderDest.xBairro} ${xml.NFe.infNFe.dest.enderDest.xMun}-${xml.NFe.infNFe.dest.enderDest.UF}`, x: 2, y: PDF.mtBlock + 2, maxWidth: PDF.width * 0.78 });
-        addTXT({ page, text: "DATA DE RECEBIMENTO", x: 2, y: PDF.mtBlock + 25, maxWidth: PDF.width * 0.78 });
-        addTXT({ page, text: "ASSINATURA DO RECEBEDOR", x: PDF.width * 0.173, y: PDF.mtBlock + 25, maxWidth: PDF.width });
+        // Bordas com alturas ajustadas
+        addRet(page, 0, PDF.mtBlock + 0, PDF.width, hTotal);
+        addRet(page, 0, PDF.mtBlock + 0, PDF.width * 0.8, hReceb);
+        addRet(page, 0, PDF.mtBlock + 0, PDF.width * 0.8, hReceb);
+        addRet(page, 0, PDF.mtBlock + hReceb, PDF.width * 0.8, 25);
+        addRet(page, PDF.width * 0.17, PDF.mtBlock + hReceb, PDF.width * 0.63, 25);
+
+        // Textos
+        addTXT({ page, text: textoReceb, x: 2, y: PDF.mtBlock + 2, maxWidth: PDF.width * 0.78 });
+        addTXT({ page, text: "DATA DE RECEBIMENTO", x: 2, y: PDF.mtBlock + hReceb, maxWidth: PDF.width * 0.78 });
+        addTXT({ page, text: "ASSINATURA DO RECEBEDOR", x: PDF.width * 0.173, y: PDF.mtBlock + hReceb, maxWidth: PDF.width });
         addTXT({ page, size: 18, text: "NFe", x: PDF.width * 0.8, y: PDF.mtBlock, maxWidth: PDF.width * 0.8, align: "center", fontStyle: "negrito" });
         addTXT({ page, size: 11, text: `Nº. ${xml.NFe.infNFe.ide.nNF.padStart(9, '0')}`, x: PDF.width * 0.8, y: PDF.mtBlock + 20, maxWidth: PDF.width * 0.8, align: "center", fontStyle: "negrito" });
         addTXT({ page, size: 11, text: `Série ${xml.NFe.infNFe.ide.serie.padStart(3, '0')}`, x: PDF.width * 0.8, y: PDF.mtBlock + 30, maxWidth: PDF.width * 0.8, align: "center", fontStyle: "negrito" });
 
-        addLTH(page, 0, PDF.mtBlock + 56, PDF.width);
-        PDF.mtBlock += 60;
+        addLTH(page, 0, PDF.mtBlock + (hTotal + 6), PDF.width);
+        PDF.mtBlock += (hTotal + 10);
     }
 
 
@@ -419,6 +482,81 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
     }
 
     async function bloco3(page = PDF.pages[(PDF.pages.length - 1)]) {
+        // 1) FORMAS DE PAGAMENTO (se existir detPag) - deve vir antes de FATURA/DUPLICATA
+        const pagNode = xml?.NFe?.infNFe?.pag;
+        let renderedPayments = false;
+        if (pagNode && typeof pagNode.detPag !== "undefined") {
+            const dets = Array.isArray(pagNode.detPag) ? pagNode.detPag : [pagNode.detPag];
+            // Filtrar: sem tPag=90 e sem valores 0
+            const pagamentos = dets.filter((d: any) => {
+                const val = parseFloat(d?.vPag || "0");
+                return d && d.tPag !== "90" && !Number.isNaN(val) && val !== 0;
+            });
+            if (pagamentos.length > 0) {
+                addTXT({ page, text: "FORMAS DE PAGAMENTO", x: 3, y: PDF.mtBlock, maxWidth: PDF.width, fontStyle: "negrito" });
+                const startY = PDF.mtBlock + 8;
+                const rowHeight = 20; // altura para 2 linhas (descrição e valor)
+                const groupsPerRow = 4;
+                const usableWidth = (PDF.width - 8);
+                const groupWidth = usableWidth / groupsPerRow; // largura de cada célula, como em "TOTAIS"
+                // conteúdo (sem cabeçalho)
+                const mapa: Record<string, string> = {
+                    "01": "Dinheiro",
+                    "02": "Cheque",
+                    "03": "Cartão de Crédito",
+                    "04": "Cartão de Débito",
+                    "05": "Crédito Loja",
+                    "10": "Vale Alimentação",
+                    "11": "Vale Refeição",
+                    "12": "Vale Presente",
+                    "13": "Vale Combustível",
+                    "14": "Duplicata Mercantil",
+                    "15": "Boleto Bancário",
+                    "17": "PIX",
+                    "18": "Transferência bancária, TED, DOC",
+                    "19": "Programa de fidelidade",
+                    "99": "Outros"
+                };
+                // calcular total de linhas (apenas dados)
+                const totalRows = Math.ceil(pagamentos.length / groupsPerRow);
+                const totalHeight = totalRows * rowHeight;
+                // borda externa (envolve toda a tabela)
+                addRet(page, 0, startY, PDF.width, totalHeight);
+                // linhas de dados (cada célula contém Descrição (esq) e Valor (dir))
+                let row = 0;
+                pagamentos.forEach((p: any, idx: number) => {
+                    const col = idx % groupsPerRow;
+                    if (idx > 0 && col === 0) row++;
+                    const baseX = (groupWidth * col);
+                    const y = startY + (row * rowHeight);
+                    const codigo = (p?.tPag ?? "").toString().padStart(2, "0");
+                    const desc = mapa[codigo] || `Código ${codigo} (desconhecido)`;
+                    const valor = parseFloat(p?.vPag || "0").toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    // borda da célula única
+                    addRet(page, baseX, y, groupWidth, rowHeight);
+                    // Descrição (linha superior) - alinhada à esquerda
+                    addTXT({ page, text: desc, x: baseX + 2, y: y + 2, maxWidth: groupWidth - 6, align: "left" });
+                    // Valor (linha inferior) - alinhado à direita
+                    addTXT({ page, text: valor, x: baseX + 2, y: y + 11, maxWidth: groupWidth - 6, align: "right", fontStyle: "negrito" });
+                });
+                // avançar bloco até a última linha renderizada
+                
+                // TROCO (se existir vTroco)
+                if (typeof pagNode.vTroco !== "undefined") {
+                    PDF.mtBlock += totalHeight + 6;
+                    const troco = parseFloat(pagNode.vTroco || "0").toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    await addLTH(page, 0, PDF.mtBlock + 2, PDF.width);
+                    addTXT({ page, text: `Troco: ${troco}`, x: 0, y: PDF.mtBlock + 9, maxWidth: PDF.width, align: "center", fontStyle: "negrito" });
+                    await addLTH(page, 0, PDF.mtBlock + 18, PDF.width);
+                    PDF.mtBlock += 22;
+                } else {
+                    PDF.mtBlock += totalHeight + 10;
+                }
+                renderedPayments = true;
+            }
+        }
+
+        // 2) FATURA / DUPLICATA (se existir), vem depois das formas de pagamento quando renderizadas
         let IndexX = 0, contL = 0;
         if (xml.NFe.infNFe.cobr != undefined) {
             addTXT({ page, text: "FATURA / DUPLICATA", x: 3, y: PDF.mtBlock, maxWidth: PDF.width * 0.25, fontStyle: "negrito" });
@@ -440,7 +578,7 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
                     addTXT({ page, text: "Venc.", x: (PDF.width * IndexX) + 1, y: PDF.mtBlock + 14 + (contL * 22), maxWidth: PDF.width * 0.1458 });
                     addTXT({ page, text: new Date(dup.dVenc).toLocaleDateString('pt-BR'), x: (PDF.width * IndexX) + 1, y: PDF.mtBlock + 14 + (contL * 22), maxWidth: PDF.width * 0.1458, align: "right", fontStyle: "negrito" });
 
-                    //Vencimento
+                    //Valor
                     addTXT({ page, text: "Valor", x: (PDF.width * IndexX) + 1, y: PDF.mtBlock + 20 + (contL * 22), maxWidth: PDF.width * 0.1458 });
                     addTXT({ page, text: dup.vDup, x: (PDF.width * IndexX) + 1, y: PDF.mtBlock + 20 + (contL * 22), maxWidth: PDF.width * 0.1458, align: "right", fontStyle: "negrito" });
 
@@ -449,43 +587,18 @@ const DANFe = async (data: { xml?: string, consulta?: string, logo?: any | null,
                             IndexX = 0
                             contL++;
                         } else {
-
                             IndexX += 0.146;
                         }
                     }
                 }
             }
+            PDF.mtBlock += ((contL + 1) * 22) + 7; // avança quando renderizou duplicatas
         } else {
-            addTXT({ page, text: "PAGAMENTOS", x: 3, y: PDF.mtBlock, maxWidth: PDF.width * 0.25, fontStyle: "negrito" });
-            const pagamentos = Array.isArray(xml.NFe.infNFe.pag.detPag) ? xml.NFe.infNFe.pag.detPag : [xml.NFe.infNFe.pag.detPag];
-            const formaPagto: any = {
-                "01": "Dinheiro", "02": "Cheque", "03": "Cartão de Crédito", "04": "Cartão de Débito", "05": "Crédito Loja",
-                "10": "Vale Alimentação", "11": "Vale Refeição", "12": "Vale Presente", "13": "Vale Combustível",
-                "15": "Boleto Bancário", "16": "Depósito Bancário", "17": "PIX", "18": "Transferência", "19": "Fidelidade",
-                "90": "Sem pagamento", "99": "Outros"
-            };
-
-            for (const pag of pagamentos) {
-                const forma = formaPagto[pag.tPag] || `Código ${pag.tPag}`;
-                const valor = parseFloat(pag.vPag).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-
-                addRet(page, PDF.width * IndexX, PDF.mtBlock + 8 + (contL * 22), PDF.width * 0.25, 20);
-                addTXT({ page, text: "FORMA", x: (PDF.width * IndexX) + 3, y: PDF.mtBlock + 9 + (contL * 22), maxWidth: PDF.width * 0.25 });
-                addTXT({ page, text: forma, x: (PDF.width * IndexX) + 3, y: PDF.mtBlock + 19 + (contL * 22), maxWidth: PDF.width * 0.25 });
-                addTXT({ page, text: forma, x: (PDF.width * IndexX) + 3, y: PDF.mtBlock + 9 + (contL * 22), maxWidth: PDF.width * 0.245, align: "right", fontStyle: "negrito" });
-                addTXT({ page, text: valor, x: (PDF.width * IndexX) + 3, y: PDF.mtBlock + 19 + (contL * 22), maxWidth: PDF.width * 0.245, align: "right", fontStyle: "negrito" });
-
-                if ((IndexX + 0.25) >= 1) {
-                    IndexX = 0.25
-                    contL++;
-                } else {
-                    IndexX += 0.25;
-                }
-
+            // caso não exista cobr e também não tenhamos renderizado pagamentos, não avança bloco
+            if (!renderedPayments) {
+                // nada a fazer
             }
         }
-
-        PDF.mtBlock += ((contL + 1) * 22) + 7; //+1 pq a linha inicial
     }
 
 

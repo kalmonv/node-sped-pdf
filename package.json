@@ -23,7 +23,8 @@
   "scripts": {
     "build2": "vite build",
     "dev": "vite .",
-    "build": "tsup"
+    "build": "tsup",
+    "gen:danfe": "npm run build && node -e \"const fs=require('fs');(async()=>{const m=await import('./dist/index.js');const xmlPath=process.env.XML||'exemplos/50251123341634000103550010000212371597662542.xml';const outPath=process.env.OUT||'exemplos/DANFe-teste.pdf';const xml=fs.readFileSync(xmlPath,'utf8');const pdf=await m.DANFe({xml});fs.writeFileSync(outPath,Buffer.from(pdf));console.log('Gerado:',outPath);})().catch(e=>{console.error(e);process.exit(1);});\""
   },
   "devDependencies": {
     "@types/barcode": "^0.0.33",

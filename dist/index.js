@@ -106,6 +106,7 @@ var DANFe = async (data = {}) => {
     return lines.length;
   }
   function wrapText(text, maxWidth, font, fontSize) {
+    text = (text ?? "").toString();
     const words = text.split(" ");
     const lines = [];
     let line = "";
@@ -134,6 +135,52 @@ var DANFe = async (data = {}) => {
     } else {
       return valor;
     }
+  }
+  function getResumoPagamentosParentese() {
+    const abrev = {
+      "01": "Dinheiro",
+      "02": "Cheque",
+      "03": "C.Cred",
+      "04": "C.Deb",
+      "05": "Cr\xE9dito",
+      "10": "V.Aliment",
+      "11": "V.Refei",
+      "12": "V.Presente",
+      "13": "V.Comb",
+      "14": "Dup",
+      "15": "Boleto",
+      "17": "Pix",
+      "18": "Transf.",
+      "19": "Fidelidade",
+      "99": "Outros"
+    };
+    const partes = [];
+    const pagNode = xml?.NFe?.infNFe?.pag;
+    if (pagNode && typeof pagNode.detPag !== "undefined") {
+      const dets = Array.isArray(pagNode.detPag) ? pagNode.detPag : [pagNode.detPag];
+      const itens = dets.filter((d) => d && d.tPag !== "90" && !Number.isNaN(parseFloat(d?.vPag || "0")) && parseFloat(d?.vPag || "0") !== 0).map((d) => {
+        const cod = (d?.tPag ?? "").toString().padStart(2, "0");
+        const label = abrev[cod] || `Cod ${cod}`;
+        const valor = parseFloat(d?.vPag || "0");
+        return { label, valor };
+      });
+      const agg = {};
+      for (const it of itens) {
+        agg[it.label] = (agg[it.label] || 0) + it.valor;
+      }
+      const partesPag = Object.keys(agg).map((k) => `${k} ${agg[k].toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+      if (partesPag.length > 0) partes.push(partesPag.join("; "));
+    }
+    const cobr = xml?.NFe?.infNFe?.cobr;
+    if (cobr && typeof cobr.dup !== "undefined") {
+      const dups = Array.isArray(cobr.dup) ? cobr.dup : [cobr.dup];
+      const qtd = dups.length;
+      const total = dups.reduce((s, d) => s + parseFloat(d?.vDup || "0"), 0);
+      if (qtd > 0 && !Number.isNaN(total)) {
+        partes.push(`Bol/Dup: ${total.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${qtd}x)`);
+      }
+    }
+    return partes.length > 0 ? ` (${partes.join("; ")})` : "";
   }
   async function gerarBlocos() {
     await bloco0();
@@ -166,19 +213,26 @@ var DANFe = async (data = {}) => {
     }
   }
   async function bloco0(page = PDF.pages[PDF.pages.length - 1]) {
-    addRet(page, 0, PDF.mtBlock + 0, PDF.width, 50);
-    addRet(page, 0, PDF.mtBlock + 0, PDF.width * 0.8, 25);
-    addRet(page, 0, PDF.mtBlock + 0, PDF.width * 0.8, 25);
-    addRet(page, 0, PDF.mtBlock + 25, PDF.width * 0.8, 25);
-    addRet(page, PDF.width * 0.17, PDF.mtBlock + 25, PDF.width * 0.63, 25);
-    addTXT({ page, text: `RECEBEMOS DE ${xml.NFe.infNFe.emit.xNome} OS PRODUTOS E/OU SERVI\xC7OS CONSTANTES DA NOTA FISCAL ELETR\xD4NICA INDICADA ABAIXO. EMISS\xC3O: ${new Date(xml.NFe.infNFe.ide.dhEmi).toLocaleDateString("pt-BR")} VALOR TOTAL: ${parseFloat(xml.NFe.infNFe.total.ICMSTot.vNF).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} DESTINAT\xC1RIO: NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL - ${xml.NFe.infNFe.dest.enderDest.xLgr}, ${xml.NFe.infNFe.dest.enderDest.nro} ${xml.NFe.infNFe.dest.enderDest.xBairro} ${xml.NFe.infNFe.dest.enderDest.xMun}-${xml.NFe.infNFe.dest.enderDest.UF}`, x: 2, y: PDF.mtBlock + 2, maxWidth: PDF.width * 0.78 });
-    addTXT({ page, text: "DATA DE RECEBIMENTO", x: 2, y: PDF.mtBlock + 25, maxWidth: PDF.width * 0.78 });
-    addTXT({ page, text: "ASSINATURA DO RECEBEDOR", x: PDF.width * 0.173, y: PDF.mtBlock + 25, maxWidth: PDF.width });
+    const resumoPg = getResumoPagamentosParentese();
+    const textoReceb = `RECEBEMOS DE ${xml.NFe.infNFe.emit.xNome} OS PRODUTOS E/OU SERVI\xC7OS CONSTANTES DA NOTA FISCAL ELETR\xD4NICA INDICADA ABAIXO. EMISS\xC3O: ${new Date(xml.NFe.infNFe.ide.dhEmi).toLocaleDateString("pt-BR")} VALOR TOTAL: ${parseFloat(xml.NFe.infNFe.total.ICMSTot.vNF).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}${resumoPg}  DESTINAT\xC1RIO: NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL - ${xml.NFe.infNFe.dest.enderDest.xLgr}, ${xml.NFe.infNFe.dest.enderDest.nro} ${xml.NFe.infNFe.dest.enderDest.xBairro} ${xml.NFe.infNFe.dest.enderDest.xMun}-${xml.NFe.infNFe.dest.enderDest.UF}`;
+    const linhas = await addTXT({ page, text: textoReceb, x: 2, y: PDF.mtBlock + 2, maxWidth: PDF.width * 0.78, cacl: true });
+    const lineH = 7 * 0.9;
+    const extraLines = Math.max(0, Math.min(3, linhas) - 2);
+    const hReceb = 25 + Math.ceil(extraLines * lineH);
+    const hTotal = 50 + (hReceb - 25);
+    addRet(page, 0, PDF.mtBlock + 0, PDF.width, hTotal);
+    addRet(page, 0, PDF.mtBlock + 0, PDF.width * 0.8, hReceb);
+    addRet(page, 0, PDF.mtBlock + 0, PDF.width * 0.8, hReceb);
+    addRet(page, 0, PDF.mtBlock + hReceb, PDF.width * 0.8, 25);
+    addRet(page, PDF.width * 0.17, PDF.mtBlock + hReceb, PDF.width * 0.63, 25);
+    addTXT({ page, text: textoReceb, x: 2, y: PDF.mtBlock + 2, maxWidth: PDF.width * 0.78 });
+    addTXT({ page, text: "DATA DE RECEBIMENTO", x: 2, y: PDF.mtBlock + hReceb, maxWidth: PDF.width * 0.78 });
+    addTXT({ page, text: "ASSINATURA DO RECEBEDOR", x: PDF.width * 0.173, y: PDF.mtBlock + hReceb, maxWidth: PDF.width });
     addTXT({ page, size: 18, text: "NFe", x: PDF.width * 0.8, y: PDF.mtBlock, maxWidth: PDF.width * 0.8, align: "center", fontStyle: "negrito" });
     addTXT({ page, size: 11, text: `N\xBA. ${xml.NFe.infNFe.ide.nNF.padStart(9, "0")}`, x: PDF.width * 0.8, y: PDF.mtBlock + 20, maxWidth: PDF.width * 0.8, align: "center", fontStyle: "negrito" });
     addTXT({ page, size: 11, text: `S\xE9rie ${xml.NFe.infNFe.ide.serie.padStart(3, "0")}`, x: PDF.width * 0.8, y: PDF.mtBlock + 30, maxWidth: PDF.width * 0.8, align: "center", fontStyle: "negrito" });
-    addLTH(page, 0, PDF.mtBlock + 56, PDF.width);
-    PDF.mtBlock += 60;
+    addLTH(page, 0, PDF.mtBlock + (hTotal + 6), PDF.width);
+    PDF.mtBlock += hTotal + 10;
   }
   async function bloco1(page = PDF.pages[PDF.pages.length - 1]) {
     addRet(page, 0, PDF.mtBlock, PDF.width, 132);
@@ -302,6 +356,67 @@ var DANFe = async (data = {}) => {
     PDF.mtBlock += 72;
   }
   async function bloco3(page = PDF.pages[PDF.pages.length - 1]) {
+    const pagNode = xml?.NFe?.infNFe?.pag;
+    let renderedPayments = false;
+    if (pagNode && typeof pagNode.detPag !== "undefined") {
+      const dets = Array.isArray(pagNode.detPag) ? pagNode.detPag : [pagNode.detPag];
+      const pagamentos = dets.filter((d) => {
+        const val = parseFloat(d?.vPag || "0");
+        return d && d.tPag !== "90" && !Number.isNaN(val) && val !== 0;
+      });
+      if (pagamentos.length > 0) {
+        addTXT({ page, text: "FORMAS DE PAGAMENTO", x: 3, y: PDF.mtBlock, maxWidth: PDF.width, fontStyle: "negrito" });
+        const startY = PDF.mtBlock + 8;
+        const rowHeight = 20;
+        const groupsPerRow = 4;
+        const usableWidth = PDF.width - 8;
+        const groupWidth = usableWidth / groupsPerRow;
+        const mapa = {
+          "01": "Dinheiro",
+          "02": "Cheque",
+          "03": "Cart\xE3o de Cr\xE9dito",
+          "04": "Cart\xE3o de D\xE9bito",
+          "05": "Cr\xE9dito Loja",
+          "10": "Vale Alimenta\xE7\xE3o",
+          "11": "Vale Refei\xE7\xE3o",
+          "12": "Vale Presente",
+          "13": "Vale Combust\xEDvel",
+          "14": "Duplicata Mercantil",
+          "15": "Boleto Banc\xE1rio",
+          "17": "PIX",
+          "18": "Transfer\xEAncia banc\xE1ria, TED, DOC",
+          "19": "Programa de fidelidade",
+          "99": "Outros"
+        };
+        const totalRows = Math.ceil(pagamentos.length / groupsPerRow);
+        const totalHeight = totalRows * rowHeight;
+        addRet(page, 0, startY, PDF.width, totalHeight);
+        let row = 0;
+        pagamentos.forEach((p, idx) => {
+          const col = idx % groupsPerRow;
+          if (idx > 0 && col === 0) row++;
+          const baseX = groupWidth * col;
+          const y = startY + row * rowHeight;
+          const codigo = (p?.tPag ?? "").toString().padStart(2, "0");
+          const desc = mapa[codigo] || `C\xF3digo ${codigo} (desconhecido)`;
+          const valor = parseFloat(p?.vPag || "0").toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          addRet(page, baseX, y, groupWidth, rowHeight);
+          addTXT({ page, text: desc, x: baseX + 2, y: y + 2, maxWidth: groupWidth - 6, align: "left" });
+          addTXT({ page, text: valor, x: baseX + 2, y: y + 11, maxWidth: groupWidth - 6, align: "right", fontStyle: "negrito" });
+        });
+        if (typeof pagNode.vTroco !== "undefined") {
+          PDF.mtBlock += totalHeight + 6;
+          const troco = parseFloat(pagNode.vTroco || "0").toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          await addLTH(page, 0, PDF.mtBlock + 2, PDF.width);
+          addTXT({ page, text: `Troco: ${troco}`, x: 0, y: PDF.mtBlock + 9, maxWidth: PDF.width, align: "center", fontStyle: "negrito" });
+          await addLTH(page, 0, PDF.mtBlock + 18, PDF.width);
+          PDF.mtBlock += 22;
+        } else {
+          PDF.mtBlock += totalHeight + 10;
+        }
+        renderedPayments = true;
+      }
+    }
     let IndexX = 0, contL = 0;
     if (xml.NFe.infNFe.cobr != void 0) {
       addTXT({ page, text: "FATURA / DUPLICATA", x: 3, y: PDF.mtBlock, maxWidth: PDF.width * 0.25, fontStyle: "negrito" });
@@ -329,44 +444,11 @@ var DANFe = async (data = {}) => {
           }
         }
       }
+      PDF.mtBlock += (contL + 1) * 22 + 7;
     } else {
-      addTXT({ page, text: "PAGAMENTOS", x: 3, y: PDF.mtBlock, maxWidth: PDF.width * 0.25, fontStyle: "negrito" });
-      const pagamentos = Array.isArray(xml.NFe.infNFe.pag.detPag) ? xml.NFe.infNFe.pag.detPag : [xml.NFe.infNFe.pag.detPag];
-      const formaPagto = {
-        "01": "Dinheiro",
-        "02": "Cheque",
-        "03": "Cart\xE3o de Cr\xE9dito",
-        "04": "Cart\xE3o de D\xE9bito",
-        "05": "Cr\xE9dito Loja",
-        "10": "Vale Alimenta\xE7\xE3o",
-        "11": "Vale Refei\xE7\xE3o",
-        "12": "Vale Presente",
-        "13": "Vale Combust\xEDvel",
-        "15": "Boleto Banc\xE1rio",
-        "16": "Dep\xF3sito Banc\xE1rio",
-        "17": "PIX",
-        "18": "Transfer\xEAncia",
-        "19": "Fidelidade",
-        "90": "Sem pagamento",
-        "99": "Outros"
-      };
-      for (const pag of pagamentos) {
-        const forma = formaPagto[pag.tPag] || `C\xF3digo ${pag.tPag}`;
-        const valor = parseFloat(pag.vPag).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-        addRet(page, PDF.width * IndexX, PDF.mtBlock + 8 + contL * 22, PDF.width * 0.25, 20);
-        addTXT({ page, text: "FORMA", x: PDF.width * IndexX + 3, y: PDF.mtBlock + 9 + contL * 22, maxWidth: PDF.width * 0.25 });
-        addTXT({ page, text: forma, x: PDF.width * IndexX + 3, y: PDF.mtBlock + 19 + contL * 22, maxWidth: PDF.width * 0.25 });
-        addTXT({ page, text: forma, x: PDF.width * IndexX + 3, y: PDF.mtBlock + 9 + contL * 22, maxWidth: PDF.width * 0.245, align: "right", fontStyle: "negrito" });
-        addTXT({ page, text: valor, x: PDF.width * IndexX + 3, y: PDF.mtBlock + 19 + contL * 22, maxWidth: PDF.width * 0.245, align: "right", fontStyle: "negrito" });
-        if (IndexX + 0.25 >= 1) {
-          IndexX = 0.25;
-          contL++;
-        } else {
-          IndexX += 0.25;
-        }
+      if (!renderedPayments) {
       }
     }
-    PDF.mtBlock += (contL + 1) * 22 + 7;
   }
   async function bloco4(page = PDF.pages[PDF.pages.length - 1]) {
     const ICMS = {
