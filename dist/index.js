@@ -9,6 +9,33 @@ var DANFe = async (data = {}) => {
     parseTagValue: false
     // Evita conversão automática de valores
   });
+  function normalizarXML(xml2) {
+    if (xml2 == "Bad Request") throw xml2;
+    const clear = [
+      "S:Envelope",
+      "S:Body",
+      "soapenv:Envelope",
+      "soapenv:Body",
+      "soap:Envelope",
+      "soap:Body",
+      "nfeResultMsg",
+      "nfeDistDFeInteresseResponse",
+      "protNFe",
+      "enviNFe",
+      "nfeProc"
+    ];
+    let index = 0;
+    while (index < clear.length) {
+      if (typeof xml2[clear[index]] !== "undefined") {
+        xml2 = { ...xml2, ...xml2[clear[index]] };
+        delete xml2[clear[index]];
+        index = 0;
+      } else {
+        index++;
+      }
+    }
+    return xml2;
+  }
   var PDF = {
     doc: await PDFDocument.create(),
     pages: [],
@@ -16,11 +43,11 @@ var DANFe = async (data = {}) => {
     height: 0,
     mtBlock: 0,
     barCode: null
-  }, isBrowser = typeof window !== "undefined", xml = parser.parse(data.xml || ""), consulta = typeof data.consulta != "undefined" ? parser.parse(data.consulta) : {}, logo = data.logo, imgDemo = data.imgDemo, protNFe = null;
+  }, isBrowser = typeof window !== "undefined", xml = normalizarXML(parser.parse(data.xml || "")), consulta = typeof data.consulta != "undefined" ? parser.parse(data.consulta) : {}, logo = data.logo, imgDemo = data.imgDemo, protNFe = null;
   if (typeof consulta?.retConsSitNFe?.procEventoNFe != "undefined")
     consulta.retConsSitNFe.procEventoNFe = Array.isArray(consulta.retConsSitNFe.procEventoNFe) ? consulta.retConsSitNFe.procEventoNFe : [consulta.retConsSitNFe.procEventoNFe];
-  if (xml.nfeProc) {
-    xml = xml.nfeProc;
+  if (!xml?.NFe?.infNFe) {
+    throw new Error("XML inv\xE1lido para DANFe: n\xE3o foi encontrada a tag NFe/infNFe.");
   }
   PDF.pages.push(PDF.doc.addPage());
   PDF.width = PDF.pages[0].getWidth();
@@ -632,6 +659,33 @@ var DANFCe = async (data = {}) => {
     parseTagValue: false
     // Evita conversão automática de valores
   });
+  function normalizarXML(xml2) {
+    if (xml2 == "Bad Request") throw xml2;
+    const clear = [
+      "S:Envelope",
+      "S:Body",
+      "soapenv:Envelope",
+      "soapenv:Body",
+      "soap:Envelope",
+      "soap:Body",
+      "nfeResultMsg",
+      "nfeDistDFeInteresseResponse",
+      "protNFe",
+      "enviNFe",
+      "nfeProc"
+    ];
+    let index = 0;
+    while (index < clear.length) {
+      if (typeof xml2[clear[index]] !== "undefined") {
+        xml2 = { ...xml2, ...xml2[clear[index]] };
+        delete xml2[clear[index]];
+        index = 0;
+      } else {
+        index++;
+      }
+    }
+    return xml2;
+  }
   var PDF = {
     doc: await PDFDocument2.create(),
     pages: [],
@@ -639,7 +693,10 @@ var DANFCe = async (data = {}) => {
     height: 0,
     mtBlock: 0,
     barCode: null
-  }, isBrowser = typeof window !== "undefined", xml = parser.parse(data.xml || ""), xmlRes = data.xmlRes, logo = data.logo, imgDemo = data.imgDemo, extras = data.extras || [];
+  }, isBrowser = typeof window !== "undefined", xml = normalizarXML(parser.parse(data.xml || "")), xmlRes = data.xmlRes, logo = data.logo, imgDemo = data.imgDemo, extras = data.extras || [];
+  if (!xml?.NFe?.infNFe) {
+    throw new Error("XML inv\xE1lido para DANFCe: n\xE3o foi encontrada a tag NFe/infNFe.");
+  }
   PDF.pages.push(PDF.doc.addPage([
     230,
     await bloco0(null) + await bloco1(null) + await bloco2(null) + await bloco3(null) + await bloco4(null)
