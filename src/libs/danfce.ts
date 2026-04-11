@@ -12,6 +12,34 @@ const DANFCe = async (data: { xml?: string, xmlRes?: Record<string, any> | null,
         parseTagValue: false,       // Evita conversão automática de valores
     });
 
+    function normalizarXML(xml: any) {
+        if (xml == "Bad Request") throw xml
+        const clear: any = [
+            'S:Envelope',
+            'S:Body',
+            'soapenv:Envelope',
+            'soapenv:Body',
+            'soap:Envelope',
+            'soap:Body',
+            'nfeResultMsg',
+            'nfeDistDFeInteresseResponse',
+            'protNFe',
+            'enviNFe',
+            'nfeProc'
+        ]
+        let index = 0;
+        while (index < clear.length) {
+            if (typeof xml[clear[index]] !== "undefined") {
+                xml = { ...xml, ...xml[clear[index]] };
+                delete xml[clear[index]];
+                index = 0; // reinicia a busca no novo nível
+            } else {
+                index++;
+            }
+        }
+        return xml;
+    }
+
     var PDF: {
         doc: any;
         pages: any;
@@ -27,11 +55,15 @@ const DANFCe = async (data: { xml?: string, xmlRes?: Record<string, any> | null,
         mtBlock: 0,
         barCode: null
     }, isBrowser = typeof window !== 'undefined',
-        xml = parser.parse(data.xml || ""),
+        xml = normalizarXML(parser.parse(data.xml || "")),
         xmlRes = data.xmlRes,
         logo = data.logo,
         imgDemo = data.imgDemo,
         extras = data.extras || [];
+
+    if (!xml?.NFe?.infNFe) {
+        throw new Error("XML inválido para DANFCe: não foi encontrada a tag NFe/infNFe.");
+    }
 
 
     //Configuração do PDF

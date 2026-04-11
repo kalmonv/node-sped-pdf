@@ -84,8 +84,7 @@ DANFe({ xml: `XML DA NOTA FISCAL`, consulta: `XML DE CONSULTA`, logo: "http://lo
 
 Este projeto está sob a licença MIT.
 
-## 👥 Contribuidores
+## ❤️ Apoie o Projeto
+Se esta biblioteca te ajuda no dia a dia e voce quiser apoiar a continuidade do projeto, voce pode contribuir via PIX:
 
-<a href="https://github.com/kalmonv/node-sped-pdf/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=kalmonv/node-sped-pdf" />
-</a>
+`47506306000188`
